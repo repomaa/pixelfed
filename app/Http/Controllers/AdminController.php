@@ -6,35 +6,53 @@ use App\{
 	AccountInterstitial,
 	Contact,
 	Hashtag,
+	Instance,
 	Newsroom,
 	OauthClient,
 	Profile,
 	Report,
 	Status,
+	StatusHashtag,
+	Story,
 	User
 };
-use DB, Cache;
+use DB, Cache, Storage;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Redis;
 use App\Http\Controllers\Admin\{
+	AdminAutospamController,
+	AdminDirectoryController,
 	AdminDiscoverController,
+	AdminHashtagsController,
 	AdminInstanceController,
 	AdminReportController,
+	// AdminGroupsController,
 	AdminMediaController,
 	AdminSettingsController,
+	// AdminStorageController,
 	AdminSupportController,
 	AdminUserController
 };
 use Illuminate\Validation\Rule;
 use App\Services\AdminStatsService;
+use App\Services\AccountService;
+use App\Services\StatusService;
+use App\Services\StoryService;
+use App\Models\CustomEmoji;
 
 class AdminController extends Controller
 {
-	use AdminReportController, 
-	AdminDiscoverController, 
-	AdminMediaController, 
-	AdminSettingsController, 
+	use AdminReportController,
+	AdminAutospamController,
+	AdminDirectoryController,
+	AdminDiscoverController,
+	AdminHashtagsController,
+	// AdminGroupsController,
+	AdminMediaController,
+	AdminSettingsController,
 	AdminInstanceController,
+	// AdminStorageController,
 	AdminUserController;
 
 	public function __construct()
@@ -46,15 +64,83 @@ class AdminController extends Controller
 
 	public function home()
 	{
+		return view('admin.home');
+	}
+
+	public function stats()
+	{
 		$data = AdminStatsService::get();
-		return view('admin.home', compact('data'));
+		return view('admin.stats', compact('data'));
+	}
+
+	public function getStats()
+	{
+		return AdminStatsService::summary();
+	}
+
+	public function getAccounts()
+	{
+		$users = User::orderByDesc('id')->cursorPaginate(10);
+
+		$res = [
+			"next_page_url" => $users->nextPageUrl(),
+			"data" => $users->map(function($user) {
+				$account = AccountService::get($user->profile_id, true);
+				if(!$account) {
+					return [
+						"id" => $user->profile_id,
+						"username" => $user->username,
+						"status" => "deleted",
+						"avatar" => "/storage/avatars/default.jpg",
+						"created_at" => $user->created_at
+					];
+				}
+				$account['user_id'] = $user->id;
+				return $account;
+			})
+			->filter(function($user) {
+				return $user;
+			})
+		];
+		return $res;
+	}
+
+	public function getPosts()
+	{
+		$posts = DB::table('statuses')
+			->orderByDesc('id')
+			->cursorPaginate(10);
+
+		$res = [
+			"next_page_url" => $posts->nextPageUrl(),
+			"data" => $posts->map(function($post) {
+				$status = StatusService::get($post->id, false);
+				if(!$status) {
+					return ["id" => $post->id, "created_at" => $post->created_at];
+				}
+				return $status;
+			})
+		];
+
+		return $res;
+	}
+
+	public function getInstances()
+	{
+		return Instance::orderByDesc('id')->cursorPaginate(10);
 	}
 
 	public function statuses(Request $request)
 	{
-		$statuses = Status::orderBy('id', 'desc')->simplePaginate(10);
-
-		return view('admin.statuses.home', compact('statuses'));
+		$statuses = Status::orderBy('id', 'desc')->cursorPaginate(10);
+		$data = $statuses->map(function($status) {
+			return StatusService::get($status->id, false);
+		})
+		->filter(function($s) {
+			return $s;
+		})
+		->toArray();
+		return view('admin.statuses.home', compact('statuses', 'data'));
 	}
 
 	public function showStatus(Request $request, $id)
@@ -62,145 +148,6 @@ class AdminController extends Controller
 		$status = Status::findOrFail($id);
 
 		return view('admin.statuses.show', compact('status'));
-	}
-
-	public function reports(Request $request)
-	{
-		$filter = $request->input('filter') == 'closed' ? 'closed' : 'open';
-		$reports = Report::whereHas('status')
-		->whereHas('reportedUser')
-		->whereHas('reporter')
-		->orderBy('created_at','desc')
-		->when($filter, function($q, $filter) {
-			return $filter == 'open' ? 
-			$q->whereNull('admin_seen') :
-			$q->whereNotNull('admin_seen');
-		})
-		->paginate(6);
-		return view('admin.reports.home', compact('reports'));
-	}
-
-	public function showReport(Request $request, $id)
-	{
-		$report = Report::findOrFail($id);
-		return view('admin.reports.show', compact('report'));
-	}
-
-	public function appeals(Request $request)
-	{
-		$appeals = AccountInterstitial::whereNotNull('appeal_requested_at')
-			->whereNull('appeal_handled_at')
-			->latest()
-			->paginate(6);
-		return view('admin.reports.appeals', compact('appeals'));
-	}
-
-	public function showAppeal(Request $request, $id)
-	{
-		$appeal = AccountInterstitial::whereNotNull('appeal_requested_at')
-			->whereNull('appeal_handled_at')
-			->findOrFail($id);
-		$meta = json_decode($appeal->meta);
-		return view('admin.reports.show_appeal', compact('appeal', 'meta'));
-	}
-
-	public function spam(Request $request)
-	{
-		$appeals = AccountInterstitial::whereType('post.autospam')
-			->whereNull('appeal_handled_at')
-			->latest()
-			->paginate(6);
-		return view('admin.reports.spam', compact('appeals'));
-	}
-
-	public function showSpam(Request $request, $id)
-	{
-		$appeal = AccountInterstitial::whereType('post.autospam')
-			->whereNull('appeal_handled_at')
-			->findOrFail($id);
-		$meta = json_decode($appeal->meta);
-		return view('admin.reports.show_spam', compact('appeal', 'meta'));
-	}
-
-	public function updateSpam(Request $request, $id)
-	{
-		$this->validate($request, [
-			'action' => 'required|in:dismiss,approve'
-		]);
-
-		$action = $request->input('action');
-		$appeal = AccountInterstitial::whereType('post.autospam')
-			->whereNull('appeal_handled_at')
-			->findOrFail($id);
-
-		$meta = json_decode($appeal->meta);
-
-		if($action == 'dismiss') {
-			$appeal->appeal_handled_at = now();
-			$appeal->save();
-
-			Cache::forget('pf:bouncer_v0:exemption_by_pid:' . $appeal->user->profile_id);
-			Cache::forget('pf:bouncer_v0:recent_by_pid:' . $appeal->user->profile_id);
-
-			return redirect('/i/admin/reports/autospam');
-		}
-
-		$status = $appeal->status;
-		$status->is_nsfw = $meta->is_nsfw;
-		$status->scope = 'public';
-		$status->visibility = 'public';
-		$status->save();
-			
-		$appeal->appeal_handled_at = now();
-		$appeal->save();
-
-		Cache::forget('pf:bouncer_v0:exemption_by_pid:' . $appeal->user->profile_id);
-		Cache::forget('pf:bouncer_v0:recent_by_pid:' . $appeal->user->profile_id);
-
-		return redirect('/i/admin/reports/autospam');
-	}
-
-	public function updateAppeal(Request $request, $id)
-	{
-		$this->validate($request, [
-			'action' => 'required|in:dismiss,approve'
-		]);
-
-		$action = $request->input('action');
-		$appeal = AccountInterstitial::whereNotNull('appeal_requested_at')
-			->whereNull('appeal_handled_at')
-			->findOrFail($id);
-
-		if($action == 'dismiss') {
-			$appeal->appeal_handled_at = now();
-			$appeal->save();
-
-			return redirect('/i/admin/reports/appeals');
-		}
-
-		switch ($appeal->type) {
-			case 'post.cw':
-				$status = $appeal->status;
-				$status->is_nsfw = false;
-				$status->save();
-				break;
-
-			case 'post.unlist':
-				$status = $appeal->status;
-				$status->scope = 'public';
-				$status->visibility = 'public';
-				$status->save();
-				break;
-			
-			default:
-				# code...
-				break;
-		}
-
-		$appeal->appeal_handled_at = now();
-		$appeal->save();
-
-		return redirect('/i/admin/reports/appeals');
 	}
 
 	public function profiles(Request $request)
@@ -244,7 +191,7 @@ class AdminController extends Controller
 	public function appsHome(Request $request)
 	{
 		$filter = $request->input('filter');
-		if(in_array($filter, ['revoked'])) {
+		if($filter == 'revoked') {
 			$apps = OauthClient::with('user')
 			->whereNotNull('user_id')
 			->whereRevoked(true)
@@ -257,12 +204,6 @@ class AdminController extends Controller
 			->paginate(10);
 		}
 		return view('admin.apps.home', compact('apps'));
-	}
-
-	public function hashtagsHome(Request $request)
-	{
-		$hashtags = Hashtag::orderByDesc('id')->paginate(10);
-		return view('admin.hashtags.home', compact('hashtags'));
 	}
 
 	public function messagesHome(Request $request)
@@ -325,6 +266,10 @@ class AdminController extends Controller
 		]);
 		$changed = false;
 		$changedFields = [];
+		$slug = str_slug($request->input('title'));
+		if(Newsroom::whereSlug($slug)->exists()) {
+			$slug = $slug . '-' . str_random(4);
+		}
 		$news = Newsroom::findOrFail($id);
 		$fields = [
 			'title' => 'string',
@@ -342,7 +287,7 @@ class AdminController extends Controller
 				case 'string':
 				if($request->{$field} != $news->{$field}) {
 					if($field == 'title') {
-						$news->slug = str_slug($request->{$field});
+						$news->slug = $slug;
 					}
 					$news->{$field} = $request->{$field};
 					$changed = true;
@@ -388,6 +333,10 @@ class AdminController extends Controller
 		]);
 		$changed = false;
 		$changedFields = [];
+		$slug = str_slug($request->input('title'));
+		if(Newsroom::whereSlug($slug)->exists()) {
+			$slug = $slug . '-' . str_random(4);
+		}
 		$news = new Newsroom();
 		$fields = [
 			'title' => 'string',
@@ -405,7 +354,7 @@ class AdminController extends Controller
 				case 'string':
 				if($request->{$field} != $news->{$field}) {
 					if($field == 'title') {
-						$news->slug = str_slug($request->{$field});
+						$news->slug = $slug;
 					}
 					$news->{$field} = $request->{$field};
 					$changed = true;
@@ -439,5 +388,176 @@ class AdminController extends Controller
 		}
 		$redirect = $news->published_at ? $news->permalink() : $news->editUrl();
 		return redirect($redirect);
+	}
+
+	public function diagnosticsHome(Request $request)
+	{
+		return view('admin.diagnostics.home');
+	}
+
+	public function diagnosticsDecrypt(Request $request)
+	{
+		$this->validate($request, [
+			'payload' => 'required'
+		]);
+
+		$key = 'exception_report:';
+		$decrypted = decrypt($request->input('payload'));
+
+		if(!starts_with($decrypted, $key)) {
+			abort(403, 'Can only decrypt error diagnostics');
+		}
+
+		$res = [
+			'decrypted' => substr($decrypted, strlen($key))
+		];
+
+		return response()->json($res);
+	}
+
+	public function stories(Request $request)
+	{
+		$stories = Story::with('profile')->latest()->paginate(10);
+		$stats = StoryService::adminStats();
+		return view('admin.stories.home', compact('stories', 'stats'));
+	}
+
+	public function customEmojiHome(Request $request)
+	{
+		if(!config('federation.custom_emoji.enabled')) {
+			return view('admin.custom-emoji.not-enabled');
+		}
+		$this->validate($request, [
+			'sort' => 'sometimes|in:all,local,remote,duplicates,disabled,search'
+		]);
+
+		if($request->has('cc')) {
+			Cache::forget('pf:admin:custom_emoji:stats');
+			Cache::forget('pf:custom_emoji');
+			return redirect(route('admin.custom-emoji'));
+		}
+
+		$sort = $request->input('sort') ?? 'all';
+
+		if($sort == 'search' && empty($request->input('q'))) {
+			return redirect(route('admin.custom-emoji'));
+		}
+
+		$pg = config('database.default') == 'pgsql';
+
+		$emojis = CustomEmoji::when($sort, function($query, $sort) use($request, $pg) {
+			if($sort == 'all') {
+				if($pg) {
+					return $query->latest();
+				} else {
+					return $query->groupBy('shortcode')->latest();
+				}
+			} else if($sort == 'local') {
+				return $query->latest()->where('domain', '=', config('pixelfed.domain.app'));
+			} else if($sort == 'remote') {
+				return $query->latest()->where('domain', '!=', config('pixelfed.domain.app'));
+			} else if($sort == 'duplicates') {
+				return $query->latest()->groupBy('shortcode')->havingRaw('count(*) > 1');
+			} else if($sort == 'disabled') {
+				return $query->latest()->whereDisabled(true);
+			} else if($sort == 'search') {
+				$q = $query
+					->latest()
+					->where('shortcode', 'like', '%' . $request->input('q') . '%')
+					->orWhere('domain', 'like', '%' . $request->input('q') . '%');
+				if(!$request->has('dups')) {
+					if(!$pg) {
+						$q = $q->groupBy('shortcode');
+					}
+				}
+				return $q;
+			}
+		})
+		->simplePaginate(10)
+		->withQueryString();
+
+		$stats = Cache::remember('pf:admin:custom_emoji:stats', 43200, function() use($pg) {
+			$res = [
+				'total' => CustomEmoji::count(),
+				'active' => CustomEmoji::whereDisabled(false)->count(),
+				'remote' => CustomEmoji::where('domain', '!=', config('pixelfed.domain.app'))->count(),
+			];
+
+			if($pg) {
+				$res['duplicate'] = CustomEmoji::select('shortcode')->groupBy('shortcode')->havingRaw('count(*) > 1')->count();
+			} else {
+				$res['duplicate'] = CustomEmoji::groupBy('shortcode')->havingRaw('count(*) > 1')->count();
+			}
+
+			return $res;
+		});
+
+		return view('admin.custom-emoji.home', compact('emojis', 'sort', 'stats'));
+	}
+
+	public function customEmojiToggleActive(Request $request, $id)
+	{
+		abort_unless(config('federation.custom_emoji.enabled'), 404);
+		$emoji = CustomEmoji::findOrFail($id);
+		$emoji->disabled = !$emoji->disabled;
+		$emoji->save();
+		$key = CustomEmoji::CACHE_KEY . str_replace(':', '', $emoji->shortcode);
+		Cache::forget($key);
+		return redirect()->back();
+	}
+
+	public function customEmojiAdd(Request $request)
+	{
+		abort_unless(config('federation.custom_emoji.enabled'), 404);
+		return view('admin.custom-emoji.add');
+	}
+
+	public function customEmojiStore(Request $request)
+	{
+		abort_unless(config('federation.custom_emoji.enabled'), 404);
+		$this->validate($request, [
+			'shortcode' => [
+				'required',
+				'min:3',
+				'max:80',
+				'starts_with::',
+				'ends_with::',
+				Rule::unique('custom_emoji')->where(function ($query) use($request) {
+					return $query->whereDomain(config('pixelfed.domain.app'))
+					->whereShortcode($request->input('shortcode'));
+				})
+			],
+			'emoji' => 'required|file|mimes:jpg,png|max:' . (config('federation.custom_emoji.max_size') / 1000)
+		]);
+
+		$emoji = new CustomEmoji;
+		$emoji->shortcode = $request->input('shortcode');
+		$emoji->domain = config('pixelfed.domain.app');
+		$emoji->save();
+
+		$fileName = $emoji->id . '.' . $request->emoji->extension();
+		$request->emoji->storePubliclyAs('public/emoji', $fileName);
+		$emoji->media_path = 'emoji/' . $fileName;
+		$emoji->save();
+		Cache::forget('pf:custom_emoji');
+		return redirect(route('admin.custom-emoji'));
+	}
+
+	public function customEmojiDelete(Request $request, $id)
+	{
+		abort_unless(config('federation.custom_emoji.enabled'), 404);
+		$emoji = CustomEmoji::findOrFail($id);
+		Storage::delete("public/{$emoji->media_path}");
+		Cache::forget('pf:custom_emoji');
+		$emoji->delete();
+		return redirect(route('admin.custom-emoji'));
+	}
+
+	public function customEmojiShowDuplicates(Request $request, $id)
+	{
+		abort_unless(config('federation.custom_emoji.enabled'), 404);
+		$emoji = CustomEmoji::orderBy('id')->whereDisabled(false)->whereShortcode($id)->firstOrFail();
+		$emojis = CustomEmoji::whereShortcode($id)->where('id', '!=', $emoji->id)->cursorPaginate(10);
+		return view('admin.custom-emoji.duplicates', compact('emoji', 'emojis'));
 	}
 }

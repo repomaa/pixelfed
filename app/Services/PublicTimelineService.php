@@ -18,17 +18,41 @@ class PublicTimelineService {
 		if($stop > 100) {
 			$stop = 100;
 		}
-		$tl = [];
-		$keys = Redis::zrevrange(self::CACHE_KEY, $start, $stop);
-		foreach($keys as $key) {
-			array_push($tl, StatusService::get($key));
+
+		return Redis::zrevrange(self::CACHE_KEY, $start, $stop);
+	}
+
+	public static function getRankedMaxId($start = null, $limit = 10)
+	{
+		if(!$start) {
+			return [];
 		}
-		return $tl;
+
+		return array_keys(Redis::zrevrangebyscore(self::CACHE_KEY, $start, '-inf', [
+			'withscores' => true,
+			'limit' => [1, $limit]
+		]));
+	}
+
+	public static function getRankedMinId($end = null, $limit = 10)
+	{
+		if(!$end) {
+			return [];
+		}
+
+		return array_keys(Redis::zrevrangebyscore(self::CACHE_KEY, '+inf', $end, [
+			'withscores' => true,
+			'limit' => [0, $limit]
+		]));
 	}
 
 	public static function add($val)
 	{
-		return Redis::zadd(self::CACHE_KEY, 1, $val);
+		if(self::count() > 400) {
+			Redis::zpopmin(self::CACHE_KEY);
+		}
+
+		return Redis::zadd(self::CACHE_KEY, $val, $val);
 	}
 
 	public static function rem($val)
@@ -43,22 +67,49 @@ class PublicTimelineService {
 
 	public static function count()
 	{
-		return Redis::zcount(self::CACHE_KEY, '-inf', '+inf');
+		return Redis::zcard(self::CACHE_KEY);
 	}
+
+    public static function deleteByProfileId($profileId)
+    {
+        $res = Redis::zrange(self::CACHE_KEY, 0, '-1');
+        if(!$res) {
+            return;
+        }
+        foreach($res as $postId) {
+            $s = StatusService::get($postId);
+            if(!$s) {
+                self::rem($postId);
+                continue;
+            }
+            if($s['account']['id'] == $profileId) {
+                self::rem($postId);
+            }
+        }
+
+        return;
+    }
 
 	public static function warmCache($force = false, $limit = 100)
 	{
 		if(self::count() == 0 || $force == true) {
-			$ids = Status::whereNull('uri')
-				->whereNull('in_reply_to_id')
-				->whereNull('reblog_of_id')
+			$hideNsfw = config('instance.hide_nsfw_on_public_feeds');
+			Redis::del(self::CACHE_KEY);
+			$minId = SnowflakeService::byDate(now()->subDays(90));
+			$ids = Status::where('id', '>', $minId)
+				->whereNull(['uri', 'in_reply_to_id', 'reblog_of_id'])
+				->when($hideNsfw, function($q, $hideNsfw) {
+                  return $q->where('is_nsfw', false);
+                })
 				->whereIn('type', ['photo', 'photo:album', 'video', 'video:album', 'photo:video:album'])
 				->whereScope('public')
-				->latest()
+				->orderByDesc('id')
 				->limit($limit)
-				->pluck('id');
-			foreach($ids as $id) {
-				self::add($id);
+				->pluck('id', 'profile_id');
+			foreach($ids as $k => $id) {
+                if(AdminShadowFilterService::canAddToPublicFeedByProfileId($k)) {
+			         self::add($id);
+                }
 			}
 			return 1;
 		}

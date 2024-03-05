@@ -45,6 +45,12 @@ class ImageOptimize implements ShouldQueue
             return;
         }
 
-        ImageResize::dispatch($media);
+        if(config('pixelfed.optimize_image') == false) {
+        	ImageThumbnail::dispatch($media)->onQueue('mmo');
+    		return;
+    	} else {
+        	ImageResize::dispatch($media)->onQueue('mmo');
+    		return;
+    	}
     }
 }

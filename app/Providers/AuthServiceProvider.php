@@ -14,7 +14,7 @@ class AuthServiceProvider extends ServiceProvider
      * @var array
      */
     protected $policies = [
-        'App\Model' => 'App\Policies\ModelPolicy',
+        // 'App\Model' => 'App\Policies\ModelPolicy',
     ];
 
     /**
@@ -24,32 +24,32 @@ class AuthServiceProvider extends ServiceProvider
      */
     public function boot()
     {
-        $this->registerPolicies();
-
-        if(config('pixelfed.oauth_enabled')) {
-            Passport::routes(null, ['middleware' => ['twofactor', \Fruitcake\Cors\HandleCors::class]]);
-            Passport::tokensExpireIn(now()->addDays(config('instance.oauth.token_expiration', 15)));
-            Passport::refreshTokensExpireIn(now()->addDays(config('instance.oauth.refresh_expiration', 30)));
+        if(config('app.env') === 'production' && config('pixelfed.oauth_enabled') == true) {
+            Passport::tokensExpireIn(now()->addDays(config('instance.oauth.token_expiration', 356)));
+            Passport::refreshTokensExpireIn(now()->addDays(config('instance.oauth.refresh_expiration', 400)));
             Passport::enableImplicitGrant();
             if(config('instance.oauth.pat.enabled')) {
                 Passport::personalAccessClientId(config('instance.oauth.pat.id'));
             }
-            Passport::setDefaultScope([
-                'read',
-                'write',
-                'follow',
-            ]);
 
             Passport::tokensCan([
                 'read' => 'Full read access to your account',
                 'write' => 'Full write access to your account',
                 'follow' => 'Ability to follow other profiles',
-                'push'  => ''
+                'admin:read' => 'Read all data on the server',
+                'admin:write' => 'Modify all data on the server',
+                'push'  => 'Receive your push notifications'
+            ]);
+
+            Passport::setDefaultScope([
+                'read',
+                'write',
+                'follow',
             ]);
         }
 
-        Gate::define('viewWebSocketsDashboard', function ($user = null) {
-            return $user->is_admin;
-        });
+        // Gate::define('viewWebSocketsDashboard', function ($user = null) {
+        //     return $user->is_admin;
+        // });
     }
 }

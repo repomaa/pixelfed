@@ -15,10 +15,13 @@ use App\Jobs\ImportPipeline\ImportInstagram;
 
 trait Instagram
 {
-    public function instagram()
-    {
-      return view('settings.import.instagram.home');
-    }
+	public function instagram()
+	{
+		if(config_cache('pixelfed.import.instagram.enabled') != true) {
+			abort(404, 'Feature not enabled');
+		}
+		return view('settings.import.instagram.home');
+	}
 
     public function instagramStart(Request $request)
     {	
@@ -90,7 +93,7 @@ trait Instagram
     			continue;
     		}
             $storagePath = "import/{$job->uuid}";
-            $path = $v->store($storagePath);
+            $path = $v->storePublicly($storagePath);
             DB::transaction(function() use ($profile, $job, $path, $original) {
 		        $data = new ImportData;
 		        $data->profile_id = $profile->id;
@@ -138,7 +141,7 @@ trait Instagram
 			return abort(500);
 		}
 		$storagePath = "import/{$job->uuid}";
-        $path = $media->store($storagePath);
+        $path = $media->storePublicly($storagePath);
         $job->media_json = $path;
         $job->stage = 3;
         $job->save();

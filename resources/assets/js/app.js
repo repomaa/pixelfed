@@ -34,6 +34,12 @@ window.App.boot = function() {
 	new Vue({ el: '#content'});
 }
 
+window.addEventListener("load", () => {
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("/sw.js");
+  }
+});
+
 window.App.util = {
 	compose: {
 		post: (function() {
@@ -97,6 +103,32 @@ window.App.util = {
 			}
 			return Math.floor(seconds) + "s";
 		}),
+		timeAhead: (function(ts, short = true) {
+			let date = Date.parse(ts);
+			let diff = date - Date.parse(new Date());
+			let seconds = Math.floor((diff) / 1000);
+			let interval = Math.floor(seconds / 63072000);
+			if (interval >= 1) {
+				return interval + (short ? "y" : " years");
+			}
+			interval = Math.floor(seconds / 604800);
+			if (interval >= 1) {
+				return interval + (short ? "w" : " weeks");
+			}
+			interval = Math.floor(seconds / 86400);
+			if (interval >= 1) {
+				return interval + (short ? "d" : " days");
+			}
+			interval = Math.floor(seconds / 3600);
+			if (interval >= 1) {
+				return interval + (short ? "h" : " hours");
+			}
+			interval = Math.floor(seconds / 60);
+			if (interval >= 1) {
+				return interval + (short ? "m" : " minutes");
+			}
+			return Math.floor(seconds) + (short ? "s" : " seconds");
+		}),
 		rewriteLinks: (function(i) {
 
 			let tag = i.innerText;
@@ -117,47 +149,47 @@ window.App.util = {
 		})
 	}, 
 	filters: [
-			['1977','filter-1977'], 
-			['Aden','filter-aden'], 
-			['Amaro','filter-amaro'], 
-			['Ashby','filter-ashby'], 
-			['Brannan','filter-brannan'], 
-			['Brooklyn','filter-brooklyn'], 
-			['Charmes','filter-charmes'], 
-			['Clarendon','filter-clarendon'], 
-			['Crema','filter-crema'], 
-			['Dogpatch','filter-dogpatch'], 
-			['Earlybird','filter-earlybird'], 
-			['Gingham','filter-gingham'], 
-			['Ginza','filter-ginza'], 
-			['Hefe','filter-hefe'], 
-			['Helena','filter-helena'], 
-			['Hudson','filter-hudson'], 
-			['Inkwell','filter-inkwell'], 
-			['Kelvin','filter-kelvin'], 
-			['Kuno','filter-juno'], 
-			['Lark','filter-lark'], 
-			['Lo-Fi','filter-lofi'], 
-			['Ludwig','filter-ludwig'], 
-			['Maven','filter-maven'], 
-			['Mayfair','filter-mayfair'], 
-			['Moon','filter-moon'], 
-			['Nashville','filter-nashville'], 
-			['Perpetua','filter-perpetua'], 
-			['Poprocket','filter-poprocket'], 
-			['Reyes','filter-reyes'], 
-			['Rise','filter-rise'], 
-			['Sierra','filter-sierra'], 
-			['Skyline','filter-skyline'], 
-			['Slumber','filter-slumber'], 
-			['Stinson','filter-stinson'], 
-			['Sutro','filter-sutro'], 
-			['Toaster','filter-toaster'], 
-			['Valencia','filter-valencia'], 
-			['Vesper','filter-vesper'], 
-			['Walden','filter-walden'], 
-			['Willow','filter-willow'], 
-			['X-Pro II','filter-xpro-ii']
+			['1984','filter-1977'],
+			['Azen','filter-aden'],
+			['Astairo','filter-amaro'],
+			['Grassbee','filter-ashby'],
+			['Bookrun','filter-brannan'],
+			['Borough','filter-brooklyn'],
+			['Farms','filter-charmes'],
+			['Hairsadone','filter-clarendon'],
+			['Cleana ','filter-crema'],
+			['Catpatch','filter-dogpatch'],
+			['Earlyworm','filter-earlybird'],
+			['Plaid','filter-gingham'],
+			['Kyo','filter-ginza'],
+			['Yefe','filter-hefe'],
+			['Goddess','filter-helena'],
+			['Yards','filter-hudson'],
+			['Quill','filter-inkwell'],
+			['Rankine','filter-kelvin'],
+			['Juno','filter-juno'],
+			['Mark','filter-lark'],
+			['Chill','filter-lofi'],
+			['Van','filter-ludwig'],
+			['Apache','filter-maven'],
+			['May','filter-mayfair'],
+			['Ceres','filter-moon'],
+			['Knoxville','filter-nashville'],
+			['Felicity','filter-perpetua'],
+			['Sandblast','filter-poprocket'],
+			['Daisy','filter-reyes'],
+			['Elevate','filter-rise'],
+			['Nevada','filter-sierra'],
+			['Futura','filter-skyline'],
+			['Sleepy','filter-slumber'],
+			['Steward','filter-stinson'],
+			['Savoy','filter-sutro'],
+			['Blaze','filter-toaster'],
+			['Apricot','filter-valencia'],
+			['Gloming','filter-vesper'],
+			['Walter','filter-walden'],
+			['Poplar','filter-willow'],
+			['Xenon','filter-xpro-ii']
 	],
 	filterCss: {
 		'filter-1977': 'sepia(.5) hue-rotate(-30deg) saturate(1.4)',
@@ -202,7 +234,8 @@ window.App.util = {
 		'filter-willow': 'brightness(1.2) contrast(.85) saturate(.05) sepia(.2)',
 		'filter-xpro-ii': 'sepia(.45) contrast(1.25) brightness(1.75) saturate(1.3) hue-rotate(-5deg)'
 	},
-	emoji: ['😂','💯','❤️','🙌','👏','👌','😍','😯','😢','😅','😁','🙂','😎','😀','🤣','😃','😄','😆','😉','😊','😋','😘','😗','😙','😚','🤗','🤩','🤔','🤨','😐','😑','😶','🙄','😏','😣','😥','😮','🤐','😪','😫','😴','😌','😛','😜','😝','🤤','😒','😓','😔','😕','🙃','🤑','😲','🙁','😖','😞','😟','😤','😭','😦','😧','😨','😩','🤯','😬','😰','😱','😳','🤪','😵','😡','😠','🤬','😷','🤒','🤕','🤢','🤮','🤧','😇','🤠','🤡','🤥','🤫','🤭','🧐','🤓','😈','👿','👹','👺','💀','👻','👽','🤖','💩','😺','😸','😹','😻','😼','😽','🙀','😿','😾','🤲','👐','🤝','👍','👎','👊','✊','🤛','🤜','🤞','✌️','🤟','🤘','👈','👉','👆','👇','☝️','✋','🤚','🖐','🖖','👋','🤙','💪','🖕','✍️','🙏','💍','💄','💋','👄','👅','👂','👃','👣','👁','👀','🧠','🗣','👤','👥'
+	emoji: [
+		'😂','💯','❤️','🙌','👏','👌','😍','😯','😢','😅','😁','🙂','😎','😀','🤣','😃','😄','😆','😉','😊','😋','😘','😗','😙','😚','🤗','🤩','🤔','🤨','😐','😑','😶','🙄','😏','😣','😥','😮','🤐','😪','😫','😴','😌','😛','😜','😝','🤤','😒','😓','😔','😕','🙃','🤑','😲','🙁','😖','😞','😟','😤','😭','😦','😧','😨','😩','🤯','😬','😰','😱','😳','🤪','😵','😡','😠','🤬','😷','🤒','🤕','🤢','🤮','🤧','😇','🤠','🤡','🤥','🤫','🤭','🧐','🤓','😈','👿','👹','👺','💀','👻','👽','🤖','💩','😺','😸','😹','😻','😼','😽','🙀','😿','😾','🤲','👐','🤝','👍','👎','👊','✊','🤛','🤜','🤞','✌️','🤟','🤘','👈','👉','👆','👇','☝️','✋','🤚','🖐','🖖','👋','🤙','💪','🖕','✍️','🙏','💍','💄','💋','👄','👅','👂','👃','👣','👁','👀','🧠','🗣','👤','👥'
 	],
 	embed: {
 		post: (function(url, caption = true, likes = false, layout = 'full') {
@@ -210,11 +243,11 @@ window.App.util = {
 			u += caption ? 'caption=true&' : 'caption=false&';
 			u += likes ? 'likes=true&' : 'likes=false&';
 			u += layout == 'compact' ? 'layout=compact' : 'layout=full';
-			return '<iframe src="'+u+'" class="pixelfed__embed" style="max-width: 100%; border: 0" width="400" allowfullscreen="allowfullscreen"></iframe><script async defer src="'+window.location.origin +'/embed.js"><\/script>';
+			return '<iframe title="Pixelfed Post Embed" src="'+u+'" class="pixelfed__embed" style="max-width: 100%; border: 0" width="400" allowfullscreen="allowfullscreen"></iframe><script async defer src="'+window.location.origin +'/embed.js"><\/script>';
 		}),
 		profile: (function(url) {
 			let u = url + '/embed';
-			return '<iframe src="'+u+'" class="pixelfed__embed" style="max-width: 100%; border: 0" width="400" allowfullscreen="allowfullscreen"></iframe><script async defer src="'+window.location.origin +'/embed.js"><\/script>';
+			return '<iframe title="Pixelfed Profile Embed" src="'+u+'" class="pixelfed__embed" style="max-width: 100%; border: 0" width="400" allowfullscreen="allowfullscreen"></iframe><script async defer src="'+window.location.origin +'/embed.js"><\/script>';
 		})
 	},
 
@@ -227,7 +260,7 @@ window.App.util = {
 			$('#navbarDropdown img').attr('src',window._sharedData.curUser.avatar)
 			.removeClass('d-none')
 			.addClass('rounded-circle border shadow')
-			.attr('width', 34).attr('height', 34);
+			.attr('width', 38).attr('height', 38);
 	})
 
 };

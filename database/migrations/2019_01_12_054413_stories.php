@@ -60,18 +60,7 @@ class Stories extends Migration
     {
         Schema::dropIfExists('story_items');
         Schema::dropIfExists('story_views');
-
-        Schema::table('stories', function (Blueprint $table) {
-            $table->dropColumn('title');
-            $table->dropColumn('preview_photo');
-            $table->dropColumn('local_only');
-            $table->dropColumn('is_live');
-            $table->dropColumn('broadcast_url');
-            $table->dropColumn('broadcast_key');
-        });
-
-        Schema::table('story_reactions', function (Blueprint $table) {
-            $table->dropColumn('story_id');
-        });
+        Schema::dropIfExists('story_reactions');
+        Schema::dropIfExists('stories');
     }
 }

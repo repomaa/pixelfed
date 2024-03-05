@@ -2,109 +2,83 @@
 
 namespace App\Transformer\Api;
 
-use App\{
-	Notification,
-	Status
-};
-use App\Services\HashidService;
+use App\Notification;
+use App\Services\AccountService;
+use App\Services\RelationshipService;
+use App\Services\StatusService;
 use League\Fractal;
 
 class NotificationTransformer extends Fractal\TransformerAbstract
 {
-	protected $defaultIncludes = [
-		'account',
-		'status',
-		'relationship',
-		'modlog',
-		'tagged'
-	];
+    public function transform(Notification $notification)
+    {
+        $res = [
+            'id' => (string) $notification->id,
+            'type' => $this->replaceTypeVerb($notification->action),
+            'created_at' => (string) str_replace('+00:00', 'Z', $notification->created_at->format(DATE_RFC3339_EXTENDED)),
+        ];
 
-	public function transform(Notification $notification)
-	{
-		return [
-			'id'       		=> (string) $notification->id,
-			'type'       	=> $this->replaceTypeVerb($notification->action),
-			'created_at' 	=> (string) $notification->created_at->format('c'),
-		];
-	}
+        $n = $notification;
 
-	public function includeAccount(Notification $notification)
-	{
-		return $this->item($notification->actor, new AccountTransformer());
-	}
+        if ($n->actor_id) {
+            $res['account'] = AccountService::get($n->actor_id);
+            if ($n->profile_id != $n->actor_id) {
+                $res['relationship'] = RelationshipService::get($n->actor_id, $n->profile_id);
+            }
+        }
 
-	public function includeStatus(Notification $notification)
-	{
-		$item = $notification;
-		if($item->item_id && $item->item_type == 'App\Status') {
-			$status = Status::with('media')->find($item->item_id);
-			if($status) {
-				return $this->item($status, new StatusTransformer());
-			} else {
-				return null;
-			}
-		} else {
-			return null;
-		}
-	}
+        if ($n->item_id && $n->item_type == 'App\Status') {
+            $res['status'] = StatusService::get($n->item_id, false);
+        }
 
-	public function replaceTypeVerb($verb)
-	{
-		$verbs = [
-			'dm'	=> 'direct',
-			'follow' => 'follow',
-			'mention' => 'mention',
-			'reblog' => 'share',
-			'share' => 'share',
-			'like' => 'favourite',
-			'comment' => 'comment',
-			'admin.user.modlog.comment' => 'modlog',
-			'tagged' => 'tagged'
-		];
-		return $verbs[$verb];
-	}
+        if ($n->item_id && $n->item_type == 'App\ModLog') {
+            $ml = $n->item;
+            if ($ml && $ml->object_uid) {
+                $res['modlog'] = [
+                    'id' => $ml->object_uid,
+                    'url' => url('/i/admin/users/modlogs/'.$ml->object_uid),
+                ];
+            }
+        }
 
-	public function includeRelationship(Notification $notification)
-	{
-		return $this->item($notification->actor, new RelationshipTransformer());
-	}
+        if ($n->item_id && $n->item_type == 'App\MediaTag') {
+            $ml = $n->item;
+            if ($ml && $ml->tagged_username) {
+                $np = StatusService::get($ml->status_id, false);
+                if ($np && isset($np['id'])) {
+                    $res['tagged'] = [
+                        'username' => $ml->tagged_username,
+                        'post_url' => $np['url'],
+                        'status_id' => $ml->status_id,
+                        'profile_id' => $ml->profile_id,
+                    ];
+                }
+            }
+        }
 
-	public function includeModlog(Notification $notification)
-	{
-		$n = $notification;
-		if($n->item_id && $n->item_type == 'App\ModLog') {
-			$ml = $n->item;
-			if(!empty($ml)) {
-				$res = $this->item($ml, function($ml) {
-					return [
-						'id' => $ml->object_uid,
-						'url' => url('/i/admin/users/modlogs/' . $ml->object_uid)
-					];
-				});
-				return $res;
-			} else {
-				return null;
-			}
-		} else {
-			return null;
-		}
-	}
+        return $res;
+    }
 
+    public function replaceTypeVerb($verb)
+    {
+        $verbs = [
+            'dm' => 'direct',
+            'follow' => 'follow',
+            'mention' => 'mention',
+            'reblog' => 'share',
+            'share' => 'share',
+            'like' => 'favourite',
+            'comment' => 'comment',
+            'admin.user.modlog.comment' => 'modlog',
+            'tagged' => 'tagged',
+            'story:react' => 'story:react',
+            'story:comment' => 'story:comment',
+        ];
 
-	public function includeTagged(Notification $notification)
-	{
-		$n = $notification;
-		if($n->item_id && $n->item_type == 'App\MediaTag') {
-			$ml = $n->item;
-			$res = $this->item($ml, function($ml) {
-				return [
-					'username' => $ml->tagged_username,
-					'post_url' => '/p/'.HashidService::encode($ml->status_id)
-				];
-			});
-			return $res;
-		} else {
-			return null;
-		}
-	}
+        if (! isset($verbs[$verb])) {
+            return $verb;
+        }
+
+        return $verbs[$verb];
+    }
 }

@@ -6,6 +6,11 @@ use App\AccountInterstitial;
 use App\Status;
 use Cache;
 use Illuminate\Support\Str;
+use App\Services\NotificationService;
+use App\Services\StatusService;
+use App\Jobs\ReportPipeline\AutospamNotifyAdminViaEmail;
+use App\Notification;
+use App\Services\AutospamService;
 
 class Bouncer {
 
@@ -55,7 +60,6 @@ class Bouncer {
 		}
 
 		if( $status->profile->created_at->gt(now()->subMonths(6)) &&
-			$status->profile->status_count < 2 &&
 			$status->profile->bio &&
 			$status->profile->website
 		) {
@@ -83,6 +87,12 @@ class Bouncer {
 		
 		if($status->profile->followers()->count() > 100) {
 			return;
+		}
+
+		if(AutospamService::active()) {
+			if(AutospamService::check($status->caption)) {
+				return (new self)->handle($status);
+			}
 		}
 
 		if(!Str::contains($status->caption, [
@@ -126,14 +136,28 @@ class Bouncer {
 		]);
 		$ai->save();
 
+		if(config('instance.reports.email.enabled') && config('instance.reports.email.autospam')) {
+			AutospamNotifyAdminViaEmail::dispatch($ai);
+		}
+
 		$u = $status->profile->user;
 		$u->has_interstitial = true;
 		$u->save();
 
 		$status->scope = 'unlisted';
 		$status->visibility = 'unlisted';
-		$status->is_nsfw = true;
+		// $status->is_nsfw = true;
 		$status->save();
+
+		$notification = new Notification();
+		$notification->profile_id = $status->profile_id;
+		$notification->actor_id = $status->profile_id;
+		$notification->action = 'autospam.warning';
+		$notification->item_id = $status->id;
+		$notification->item_type = "App\Status";
+		$notification->save();
+
+		StatusService::del($status->id);
 
 		Cache::forget('pf:bouncer_v0:exemption_by_pid:' . $status->profile_id);
 		Cache::forget('pf:bouncer_v0:recent_by_pid:' . $status->profile_id);

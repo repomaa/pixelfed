@@ -4,20 +4,28 @@ namespace App\Transformer\ActivityPub;
 
 use App\Profile;
 use League\Fractal;
+use App\Services\AccountService;
 
 class ProfileTransformer extends Fractal\TransformerAbstract
 {
     public function transform(Profile $profile)
     {
-        return [
+        $res = [
           '@context' => [
-            'https://www.w3.org/ns/activitystreams',
             'https://w3id.org/security/v1',
+            'https://www.w3.org/ns/activitystreams',
             [
+              'toot' => 'http://joinmastodon.org/ns#',
               'manuallyApprovesFollowers' => 'as:manuallyApprovesFollowers',
-              'PropertyValue'             => 'schema:PropertyValue',
-              'schema'                    => 'http://schema.org#',
-              'value'                     => 'schema:value'
+              'alsoKnownAs' => [
+                    '@id' => 'as:alsoKnownAs',
+                    '@type' => '@id'
+              ],
+              'movedTo' => [
+                    '@id' => 'as:movedTo',
+                    '@type' => '@id'
+              ],
+              'indexable' => 'toot:indexable',
             ],
           ],
           'id'                        => $profile->permalink(),
@@ -26,14 +34,13 @@ class ProfileTransformer extends Fractal\TransformerAbstract
           'followers'                 => $profile->permalink('/followers'),
           'inbox'                     => $profile->permalink('/inbox'),
           'outbox'                    => $profile->permalink('/outbox'),
-          //'featured'                  => $profile->permalink('/collections/featured'),
           'preferredUsername'         => $profile->username,
           'name'                      => $profile->name,
           'summary'                   => $profile->bio,
           'url'                       => $profile->url(),
           'manuallyApprovesFollowers' => (bool) $profile->is_private,
-          // 'follower_count' => $profile->followers()->count(),
-          // 'following_count' => $profile->following()->count(),
+          'indexable'                 => (bool) $profile->indexable,
+          'published'                 => $profile->created_at->format('Y-m-d') . 'T00:00:00Z',
           'publicKey' => [
             'id'           => $profile->permalink().'#main-key',
             'owner'        => $profile->permalink(),
@@ -48,5 +55,15 @@ class ProfileTransformer extends Fractal\TransformerAbstract
             'sharedInbox' => config('app.url') . '/f/inbox'
           ]
       ];
+
+      if($profile->aliases->count()) {
+        $res['alsoKnownAs'] = $profile->aliases->map(fn($alias) => $alias->uri);
+      }
+
+      if($profile->moved_to_profile_id) {
+        $res['movedTo'] = AccountService::get($profile->moved_to_profile_id)['url'];
+      }
+
+      return $res;
     }
 }

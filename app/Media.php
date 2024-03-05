@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Util\Media\License;
 use Storage;
+use Illuminate\Support\Str;
 
 class Media extends Model
 {
@@ -16,7 +17,12 @@ class Media extends Model
      *
      * @var array
      */
-    protected $dates = ['deleted_at'];
+    protected $guarded = [];
+
+    protected $casts = [
+        'srcset' => 'array',
+        'deleted_at' => 'datetime'
+    ];
 
     public function status()
     {
@@ -31,6 +37,7 @@ class Media extends Model
     public function url()
     {
         if($this->cdn_url) {
+            // return Storage::disk(config('filesystems.cloud'))->url($this->media_path);
             return $this->cdn_url;
         }
 
@@ -51,6 +58,16 @@ class Media extends Model
             return url(Storage::url($this->thumbnail_path));
         }
 
+        if($this->remote_media && !$this->thumbnail_path && $this->cdn_url) {
+            return $this->cdn_url;
+        }
+
+        if($this->media_path && $this->mime && in_array($this->mime, ['image/jpeg', 'image/png'])) {
+            return $this->remote_media || Str::startsWith($this->media_path, 'http') ?
+                $this->media_path :
+                url(Storage::url($this->media_path));
+        }
+
         return url(Storage::url('public/no-preview.png'));
     }
 
@@ -61,6 +78,9 @@ class Media extends Model
 
     public function mimeType()
     {
+        if(!$this->mime) {
+            return;
+        }
         return explode('/', $this->mime)[0];
     }
 

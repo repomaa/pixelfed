@@ -2,7 +2,7 @@
 
 namespace App\Jobs\LikePipeline;
 
-use Cache, Log;
+use Cache, DB, Log;
 use Illuminate\Support\Facades\Redis;
 use App\{Like, Notification};
 use Illuminate\Bus\Queueable;
@@ -59,7 +59,10 @@ class LikePipeline implements ShouldQueue
             return;
         }
 
-        StatusService::del($status->id);
+        $status->likes_count = DB::table('likes')->whereStatusId($status->id)->count();
+        $status->save();
+
+        StatusService::refresh($status->id);
 
         if($status->url && $actor->domain == null) {
             return $this->remoteLikeDeliver();
@@ -76,18 +79,18 @@ class LikePipeline implements ShouldQueue
             return true;
         }
 
-        try {
-            $notification = new Notification();
-            $notification->profile_id = $status->profile_id;
-            $notification->actor_id = $actor->id;
-            $notification->action = 'like';
-            $notification->message = $like->toText($status->in_reply_to_id ? 'comment' : 'post');
-            $notification->rendered = $like->toHtml($status->in_reply_to_id ? 'comment' : 'post');
-            $notification->item_id = $status->id;
-            $notification->item_type = "App\Status";
-            $notification->save();
+        if($status->uri === null && $status->object_url === null && $status->url === null) {
+            try {
+                $notification = new Notification();
+                $notification->profile_id = $status->profile_id;
+                $notification->actor_id = $actor->id;
+                $notification->action = 'like';
+                $notification->item_id = $status->id;
+                $notification->item_type = "App\Status";
+                $notification->save();
 
-        } catch (Exception $e) {
+            } catch (Exception $e) {
+            }
         }
     }
 

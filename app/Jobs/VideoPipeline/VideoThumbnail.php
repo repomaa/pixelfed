@@ -14,12 +14,47 @@ use Storage;
 use App\Media;
 use App\Jobs\MediaPipeline\MediaStoragePipeline;
 use App\Util\Media\Blurhash;
+use App\Services\MediaService;
+use App\Services\StatusService;
+use Illuminate\Queue\Middleware\WithoutOverlapping;
+use Illuminate\Contracts\Queue\ShouldBeUniqueUntilProcessing;
 
-class VideoThumbnail implements ShouldQueue
+class VideoThumbnail implements ShouldQueue, ShouldBeUniqueUntilProcessing
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     protected $media;
+
+    public $timeout = 900;
+    public $tries = 3;
+    public $maxExceptions = 1;
+    public $failOnTimeout = true;
+    public $deleteWhenMissingModels = true;
+
+    /**
+     * The number of seconds after which the job's unique lock will be released.
+     *
+     * @var int
+     */
+    public $uniqueFor = 3600;
+
+    /**
+     * Get the unique ID for the job.
+     */
+    public function uniqueId(): string
+    {
+        return 'media:video-thumb:id-' . $this->media->id;
+    }
+
+    /**
+     * Get the middleware the job should pass through.
+     *
+     * @return array<int, object>
+     */
+    public function middleware(): array
+    {
+        return [(new WithoutOverlapping("media:video-thumb:id-{$this->media->id}"))->shared()->dontRelease()];
+    }
 
     /**
      * Create a new job instance.
@@ -52,7 +87,7 @@ class VideoThumbnail implements ShouldQueue
             $path[$i] = $t;
             $save = implode('/', $path);
             $video = FFMpeg::open($base)
-            ->getFrameFromSeconds(0)
+            ->getFrameFromSeconds(1)
             ->export()
             ->toDisk('local')
             ->save($save);
@@ -66,12 +101,20 @@ class VideoThumbnail implements ShouldQueue
                 $media->save();
             }
 
+            if(config('media.hls.enabled')) {
+                VideoHlsPipeline::dispatch($media)->onQueue('mmo');
+            }
         } catch (Exception $e) {
             
         }
 
         if($media->status_id) {
             Cache::forget('status:transformer:media:attachments:' . $media->status_id);
+            MediaService::del($media->status_id);
+            Cache::forget('status:thumb:nsfw0' . $media->status_id);
+            Cache::forget('status:thumb:nsfw1' . $media->status_id);
+            Cache::forget('pf:services:sh:id:' . $media->status_id);
+            StatusService::del($media->status_id);
         }
 
         MediaStoragePipeline::dispatch($media);

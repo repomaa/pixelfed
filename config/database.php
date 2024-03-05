@@ -1,7 +1,8 @@
 <?php
 
-return [
+use Illuminate\Database\DBAL\TimestampType;
 
+return [
     /*
     |--------------------------------------------------------------------------
     | Default Database Connection Name
@@ -47,11 +48,16 @@ return [
             'username'    => env('DB_USERNAME', 'forge'),
             'password'    => env('DB_PASSWORD', ''),
             'unix_socket' => env('DB_SOCKET', ''),
+            'sticky'      => true,
             'charset'     => 'utf8mb4',
             'collation'   => 'utf8mb4_unicode_ci',
             'prefix'      => '',
             'strict'      => false,
             'engine'      => null,
+            'dump' => [
+                'use_single_transaction',
+                'skip_lock_tables',
+            ]
         ],
 
         'pgsql' => [
@@ -119,4 +125,9 @@ return [
 
     ],
 
+	'dbal' => [
+	    'types' => [
+	        'timestamp' => TimestampType::class,
+	    ],
+	],
 ];

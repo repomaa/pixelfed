@@ -8,6 +8,7 @@ use App\Media;
 use App\Profile;
 use App\User;
 use App\UserFilter;
+use App\Util\Lexer\Autolink;
 use App\Util\Lexer\PrettyNumber;
 use Auth;
 use Cache;
@@ -16,32 +17,35 @@ use Mail;
 use Purify;
 use App\Mail\PasswordChange;
 use Illuminate\Http\Request;
+use App\Services\AccountService;
+use App\Services\PronounService;
 
 trait HomeSettings
 {
-
     public function home()
     {
         $id = Auth::user()->profile->id;
         $storage = [];
         $used = Media::whereProfileId($id)->sum('size');
-        $storage['limit'] = config('pixelfed.max_account_size') * 1024;
+        $storage['limit'] = config_cache('pixelfed.max_account_size') * 1024;
         $storage['used'] = $used;
         $storage['percentUsed'] = ceil($storage['used'] / $storage['limit'] * 100);
         $storage['limitPretty'] = PrettyNumber::size($storage['limit']);
         $storage['usedPretty'] = PrettyNumber::size($storage['used']);
+        $pronouns = PronounService::get($id);
 
-        return view('settings.home', compact('storage'));
+        return view('settings.home', compact('storage', 'pronouns'));
     }
 
     public function homeUpdate(Request $request)
     {
         $this->validate($request, [
-        'name'    => 'required|string|max:'.config('pixelfed.max_name_length'),
-        'bio'     => 'nullable|string|max:'.config('pixelfed.max_bio_length'),
-        'website' => 'nullable|url',
-        'language' => 'nullable|string|min:2|max:5'
-      ]);
+            'name'    => 'nullable|string|max:'.config('pixelfed.max_name_length'),
+            'bio'     => 'nullable|string|max:'.config('pixelfed.max_bio_length'),
+            'website' => 'nullable|url',
+            'language' => 'nullable|string|min:2|max:5',
+            'pronouns' => 'nullable|array|max:4'
+        ]);
 
         $changes = false;
         $name = strip_tags(Purify::clean($request->input('name')));
@@ -50,12 +54,14 @@ trait HomeSettings
         $language = $request->input('language');
         $user = Auth::user();
         $profile = $user->profile;
+        $pronouns = $request->input('pronouns');
+        $existingPronouns = PronounService::get($profile->id);
         $layout = $request->input('profile_layout');
         if($layout) {
             $layout = !in_array($layout, ['metro', 'moment']) ? 'metro' : $layout;
         }
 
-        $enforceEmailVerification = config('pixelfed.enforce_email_verification');
+        $enforceEmailVerification = config_cache('pixelfed.enforce_email_verification');
 
         // Only allow email to be updated if not yet verified
         if (!$enforceEmailVerification || !$changes && $user->email_verified_at) {
@@ -70,9 +76,9 @@ trait HomeSettings
                 $profile->website = $website;
             }
 
-            if ($profile->bio != $bio) {
+            if (strip_tags($profile->bio) != $bio) {
                 $changes = true;
-                $profile->bio = $bio;
+                $profile->bio = Autolink::create()->autolink($bio);
             }
 
             if($user->language != $language &&
@@ -82,13 +88,21 @@ trait HomeSettings
                 $user->language = $language;
                 session()->put('locale', $language);
             }
+
+            if($existingPronouns != $pronouns) {
+                if($pronouns && in_array('Select Pronoun(s)', $pronouns)) {
+                    PronounService::clear($profile->id);
+                } else {
+                    PronounService::put($profile->id, $pronouns);
+                }
+            }
         }
 
         if ($changes === true) {
-            Cache::forget('user:account:id:'.$user->id);
             $user->save();
             $profile->save();
-
+            Cache::forget('user:account:id:'.$user->id);
+            AccountService::del($profile->id);
             return redirect('/settings/home')->with('status', 'Profile successfully updated!');
         }
 
@@ -145,21 +159,22 @@ trait HomeSettings
     public function emailUpdate(Request $request)
     {
         $this->validate($request, [
-            'email'   => 'required|email',
+            'email'   => 'required|email|unique:users,email',
         ]);
         $changes = false;
         $email = $request->input('email');
         $user = Auth::user();
         $profile = $user->profile;
 
-        $validate = config('pixelfed.enforce_email_verification');
+        $validate = config_cache('pixelfed.enforce_email_verification');
 
         if ($user->email != $email) {
             $changes = true;
             $user->email = $email;
 
             if ($validate) {
-                $user->email_verified_at = null;
+                // auto verify admin email addresses
+                $user->email_verified_at = $user->is_admin == true ? now() : null;
                 // Prevent old verifications from working
                 EmailVerification::whereUserId($user->id)->delete();
             }
@@ -181,7 +196,7 @@ trait HomeSettings
             $user->save();
             $profile->save();
 
-            return redirect('/settings/home')->with('status', 'Email successfully updated!');
+            return redirect('/settings/email')->with('status', 'Email successfully updated!');
         } else {
             return redirect('/settings/email');
         }
@@ -192,5 +207,4 @@ trait HomeSettings
     {
         return view('settings.avatar');
     }
-
 }

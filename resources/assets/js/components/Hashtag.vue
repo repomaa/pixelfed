@@ -33,7 +33,7 @@
 		<div v-if="tags.length" class="tag-timeline">
 			<p v-if="top.length" class="font-weight-bold text-muted mb-0">Top Posts</p>
 			<div class="row pb-5">
-				<div v-for="(tag, index) in top" class="col-4 p-0 p-sm-2 p-md-3 hashtag-post-square">
+				<div v-for="(tag, index) in top" class="col-3 p-0 p-sm-2 p-md-3 hashtag-post-square">
 					<a class="card info-overlay card-md-border-0" :href="tag.status.url">
 						<div :class="[tag.status.filter ? 'square ' + tag.status.filter : 'square']">
 							<div v-if="tag.status.sensitive && forceNsfw == false" class="square-content">
@@ -48,9 +48,6 @@
 							<div v-else class="square-content" :style="'background-image: url('+tag.status.media_attachments[0].preview_url+')'"></div>
 							<div class="info-overlay-text">
 								<h5 class="text-white m-auto font-weight-bold">
-									<span class="pr-4">
-										<span class="far fa-heart fa-lg pr-1"></span> {{tag.status.like_count}}
-									</span>
 									<span>
 										<span class="fas fa-retweet fa-lg pr-1"></span> {{tag.status.share_count}}
 									</span>
@@ -62,7 +59,7 @@
 			</div>
 			<p class="font-weight-bold text-muted mb-0">Most Recent</p>
 			<div class="row">
-				<div v-for="(tag, index) in tags" class="col-4 p-0 p-sm-2 p-md-3 hashtag-post-square">
+				<div v-for="(tag, index) in tags" class="col-3 p-1 hashtag-post-square">
 					<a class="card info-overlay card-md-border-0" :href="tag.status.url">
 						<div :class="[tag.status.filter ? 'square ' + tag.status.filter : 'square']">
 							<div v-if="tag.status.sensitive && forceNsfw == false" class="square-content">
@@ -92,9 +89,6 @@
 							<span v-if="tag.status.pf_type == 'video:album'" class="float-right mr-3 post-icon"><i class="fas fa-film fa-2x"></i></span>
 							<div class="info-overlay-text">
 								<h5 class="text-white m-auto font-weight-bold">
-									<span class="pr-4">
-										<span class="far fa-heart fa-lg pr-1"></span> {{tag.status.favourites_count}}
-									</span>
 									<span>
 										<span class="far fa-comment fa-lg pr-1"></span> {{tag.status.reply_count}}
 									</span>
@@ -103,7 +97,7 @@
 						</div>
 					</a>
 				</div>
-				<div v-if="tags.length && loaded" class="card card-body text-center shadow-none bg-transparent border-0">
+				<div v-if="tags.length && loaded" class="col-12 text-center mt-4">
 					<infinite-loading @infinite="infiniteLoader">
 						<div slot="no-results" class="font-weight-bold"></div>
 						<div slot="no-more" class="font-weight-bold"></div>
@@ -115,8 +109,8 @@
 			<p class="text-center lead font-weight-bold">No public posts found.</p>
 		</div>
 	</div>
-	<div v-else class="container text-center">
-		<div class="mt-5 spinner-border" role="status">
+	<div v-else class="mt-5 text-center">
+		<div class="spinner-border" role="status">
 			<span class="sr-only">Loading...</span>
 		</div>
 	</div>
@@ -227,7 +221,7 @@
 				}).then(res => {
 					this.following = false;
 				});
-			},	
+			},
 
 		}
 	}

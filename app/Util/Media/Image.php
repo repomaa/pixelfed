@@ -15,7 +15,8 @@ class Image
 	public $orientation;
 	public $acceptedMimes = [
 		'image/png',
-		'image/jpeg'
+		'image/jpeg',
+		'image/webp'
 	];
 
 	public function __construct()
@@ -71,6 +72,8 @@ class Image
 		return [
 			'dimensions'  => $this->orientations()[$orientation],
 			'orientation' => $orientation,
+			'width_original' => $width,
+			'height_original' => $height,
 		];
 	}
 
@@ -154,16 +157,21 @@ class Image
 						}
 					}
 					$media->metadata = json_encode($meta);
-				} 
+				}
 
-				$img->resize($aspect['width'], $aspect['height'], function ($constraint) {
-					$constraint->aspectRatio();
-				});
+				if (
+				    ($ratio['width_original'] > $aspect['width'])
+				    || ($ratio['height_original'] > $aspect['height'])
+				) {
+					$img->resize($aspect['width'], $aspect['height'], function ($constraint) {
+						$constraint->aspectRatio();
+					});
+				}
 			}
 			$converted = $this->setBaseName($path, $thumbnail, $img->extension);
 			$newPath = storage_path('app/'.$converted['path']);
 
-			$quality = config('pixelfed.image_quality');
+			$quality = config_cache('pixelfed.image_quality');
 			$img->save($newPath, $quality);
 
 			if ($thumbnail == true) {

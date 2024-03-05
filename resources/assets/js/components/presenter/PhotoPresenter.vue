@@ -7,7 +7,7 @@
 			<p class="h4 font-weight-bold text-center">
 				Sensitive Content
 			</p>
-			<p class="text-center py-2">
+			<p class="text-center py-2 content-label-text">
 				{{ status.spoiler_text ? status.spoiler_text : 'This post may contain sensitive content.'}}
 			</p>
 			<p class="mb-0">
@@ -29,7 +29,36 @@
 				:alt="altText(status)"
 				:width="width()"
 				:height="height()"
-				onerror="this.onerror=null;this.src='/storage/no-preview.png'">
+				onerror="this.onerror=null;this.src='/storage/no-preview.png'"
+				@click.prevent="toggleLightbox">
+
+				<!-- <blur-hash-image
+					class="card-img-top"
+					width="32"
+					height="32"
+					:punch="1"
+					:hash="status.media_attachments[0].blurhash"
+					:src="status.media_attachments[0].url"
+					:alt="altText(status)"
+					@click.prevent="toggleLightbox"/> -->
+
+				<p v-if="!status.sensitive && sensitive"
+					@click="status.sensitive = true"
+					style="
+					margin-top: 0;
+					padding: 10px;
+					color: #fff;
+					font-size: 10px;
+					text-align: right;
+					position: absolute;
+					top: 0;
+					right: 0;
+					border-top-left-radius: 5px;
+					cursor: pointer;
+					background: linear-gradient(0deg, rgba(0,0,0,0.5), rgba(0,0,0,0.5));
+				">
+					<i class="fas fa-eye-slash fa-lg"></i>
+				</p>
 
 				<p
 					v-if="status.media_attachments[0].license"
@@ -54,12 +83,14 @@
     border-top-left-radius: 0 !important;
     border-top-right-radius: 0 !important;
   }
+  .content-label-wrapper {
+  	position: relative;
+  }
   .content-label {
   	margin: 0;
   	position: absolute;
   	top:50%;
   	left:50%;
-  	z-index: 2;
   	transform: translate(-50%, -50%);
   	display: flex;
   	flex-direction: column;
@@ -73,8 +104,19 @@
 </style>
 
 <script type="text/javascript">
+	import BigPicture from 'bigpicture';
+
 	export default {
 		props: ['status'],
+
+		data() {
+			return {
+				sensitive: this.status.sensitive
+			}
+		},
+
+		mounted() {
+		},
 
 		methods: {
 			altText(status) {
@@ -88,6 +130,12 @@
 
 			toggleContentWarning(status) {
 				this.$emit('togglecw');
+			},
+
+			toggleLightbox(e) {
+				BigPicture({
+					el: e.target
+				})
 			},
 
 			width() {

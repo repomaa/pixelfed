@@ -13,7 +13,7 @@ return [
     |
     */
 
-    'default' => env('FILESYSTEM_DRIVER', 'local'),
+    'default' => env('DANGEROUSLY_SET_FILESYSTEM_DRIVER', 'local'),
 
     /*
     |--------------------------------------------------------------------------
@@ -46,6 +46,16 @@ return [
         'local' => [
             'driver' => 'local',
             'root'   => storage_path('app'),
+            'permissions' => [
+                'file' => [
+                    'public' => 0644,
+                    'private' => 0600,
+                ],
+                'dir' => [
+                    'public' => 0755,
+                    'private' => 0700,
+                ],
+            ],
         ],
 
         'public' => [
@@ -53,6 +63,7 @@ return [
             'root'       => storage_path('app/public'),
             'url'        => env('APP_URL').'/storage',
             'visibility' => 'public',
+            'throw' => true,
         ],
 
         's3' => [
@@ -61,9 +72,39 @@ return [
             'secret'   => env('AWS_SECRET_ACCESS_KEY'),
             'region'   => env('AWS_DEFAULT_REGION'),
             'bucket'   => env('AWS_BUCKET'),
+            'visibility' => 'public',
             'url'      => env('AWS_URL'),
             'endpoint' => env('AWS_ENDPOINT'),
             'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', false),
+            'throw' => true,
+        ],
+
+        'alt-primary' => [
+            'enabled'  => env('ALT_PRI_ENABLED', false),
+            'driver'   => 's3',
+            'key'      => env('ALT_PRI_AWS_ACCESS_KEY_ID'),
+            'secret'   => env('ALT_PRI_AWS_SECRET_ACCESS_KEY'),
+            'region'   => env('ALT_PRI_AWS_DEFAULT_REGION'),
+            'bucket'   => env('ALT_PRI_AWS_BUCKET'),
+            'visibility' => 'public',
+            'url'      => env('ALT_PRI_AWS_URL'),
+            'endpoint' => env('ALT_PRI_AWS_ENDPOINT'),
+            'use_path_style_endpoint' => env('ALT_PRI_AWS_USE_PATH_STYLE_ENDPOINT', false),
+            'throw' => true,
+        ],
+
+        'alt-secondary' => [
+            'enabled'  => env('ALT_SEC_ENABLED', false),
+            'driver'   => 's3',
+            'key'      => env('ALT_SEC_AWS_ACCESS_KEY_ID'),
+            'secret'   => env('ALT_SEC_AWS_SECRET_ACCESS_KEY'),
+            'region'   => env('ALT_SEC_AWS_DEFAULT_REGION'),
+            'bucket'   => env('ALT_SEC_AWS_BUCKET'),
+            'visibility' => 'public',
+            'url'      => env('ALT_SEC_AWS_URL'),
+            'endpoint' => env('ALT_SEC_AWS_ENDPOINT'),
+            'use_path_style_endpoint' => env('ALT_SEC_AWS_USE_PATH_STYLE_ENDPOINT', false),
+            'throw' => true,
         ],
 
         'spaces' => [
@@ -77,12 +118,13 @@ return [
             'options' => [
                 'CacheControl' => 'max-age=31536000'
             ],
-            'root' => env('DO_SPACES_ROOT','/'),
-            'url' => str_replace(env('DO_SPACES_REGION'),env('DO_SPACES_BUCKET').'.'.env('DO_SPACES_REGION'),str_replace("digitaloceanspaces","cdn.digitaloceanspaces",env('DO_SPACES_ENDPOINT'))),
+            'root' => env('DO_SPACES_ROOT',''),
+            'throw' => true,
+            'url' => env('AWS_URL'),
         ],
 
         'backup' => [
-            'driver' => env('PF_BACKUP_DRIVER', 'local'),
+            'driver' => env('PF_BACKUP_DRIVER', 's3'),
             'visibility' => 'private',
             'root' => env('PF_BACKUP_DRIVER', 'local') == 'local' ?
                 storage_path('app/backups/') :

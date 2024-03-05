@@ -3,79 +3,74 @@
 namespace App\Providers;
 
 use App\Observers\{
-    AvatarObserver,
-    NotificationObserver,
-    ModLogObserver,
-    ProfileObserver,
+	AvatarObserver,
+	FollowerObserver,
+	LikeObserver,
+	NotificationObserver,
+	ModLogObserver,
+	ProfileObserver,
     StatusHashtagObserver,
-    UserObserver,
-    UserFilterObserver,
+    StatusObserver,
+	UserObserver,
+	UserFilterObserver,
 };
 use App\{
-    Avatar,
-    Notification,
-    ModLog,
-    Profile,
-    StatusHashtag,
-    User,
-    UserFilter
+	Avatar,
+	Follower,
+	Like,
+	Notification,
+	ModLog,
+	Profile,
+	StatusHashtag,
+    Status,
+	User,
+	UserFilter
 };
 use Auth, Horizon, URL;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Pagination\Paginator;
+use Illuminate\Support\Facades\Validator;
 
 class AppServiceProvider extends ServiceProvider
 {
-    /**
-     * Bootstrap any application services.
-     *
-     * @return void
-     */
-    public function boot()
-    {
-        URL::forceScheme('https');
-        Schema::defaultStringLength(191);
+	/**
+	 * Bootstrap any application services.
+	 *
+	 * @return void
+	 */
+	public function boot()
+	{
+		if(config('instance.force_https_urls', true)) {
+			URL::forceScheme('https');
+		}
 
-        Paginator::useBootstrap();
+		Schema::defaultStringLength(191);
+		Paginator::useBootstrap();
+		Avatar::observe(AvatarObserver::class);
+		Follower::observe(FollowerObserver::class);
+		Like::observe(LikeObserver::class);
+		Notification::observe(NotificationObserver::class);
+		ModLog::observe(ModLogObserver::class);
+		Profile::observe(ProfileObserver::class);
+		StatusHashtag::observe(StatusHashtagObserver::class);
+		User::observe(UserObserver::class);
+        Status::observe(StatusObserver::class);
+		UserFilter::observe(UserFilterObserver::class);
+		Horizon::auth(function ($request) {
+			return Auth::check() && $request->user()->is_admin;
+		});
+		Validator::includeUnvalidatedArrayKeys();
+	}
 
-        Avatar::observe(AvatarObserver::class);
-        Notification::observe(NotificationObserver::class);
-        ModLog::observe(ModLogObserver::class);
-        Profile::observe(ProfileObserver::class);
-        StatusHashtag::observe(StatusHashtagObserver::class);
-        User::observe(UserObserver::class);
-        UserFilter::observe(UserFilterObserver::class);
-
-        Horizon::auth(function ($request) {
-            return Auth::check() && $request->user()->is_admin;
-        });
-
-        Blade::directive('prettyNumber', function ($expression) {
-            $num = \App\Util\Lexer\PrettyNumber::convert($expression);
-            return "<?php echo $num; ?>";
-        });
-
-        Blade::directive('prettySize', function ($expression) {
-            $size = \App\Util\Lexer\PrettyNumber::size($expression);
-            return "<?php echo '$size'; ?>";
-        });
-
-        Blade::directive('maxFileSize', function () {
-            $value = config('pixelfed.max_photo_size');
-
-            return \App\Util\Lexer\PrettyNumber::size($value, true);
-        });
-    }
-
-    /**
-     * Register any application services.
-     *
-     * @return void
-     */
-    public function register()
-    {
-        //
-    }
+	/**
+	 * Register any application services.
+	 *
+	 * @return void
+	 */
+	public function register()
+	{
+		//
+	}
 }

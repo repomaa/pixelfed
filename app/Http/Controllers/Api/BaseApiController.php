@@ -15,7 +15,8 @@ use App\{
     Media,
     Notification,
     Profile,
-    Status
+    Status,
+    StatusArchived
 };
 use App\Transformer\Api\{
     AccountTransformer,
@@ -36,9 +37,11 @@ use App\Jobs\VideoPipeline\{
     VideoPostProcess,
     VideoThumbnail
 };
+use App\Services\AccountService;
 use App\Services\NotificationService;
 use App\Services\MediaPathService;
 use App\Services\MediaBlocklistService;
+use App\Services\StatusService;
 
 class BaseApiController extends Controller
 {
@@ -54,110 +57,41 @@ class BaseApiController extends Controller
     public function notifications(Request $request)
     {
         abort_if(!$request->user(), 403);
-        $pid = $request->user()->profile_id;
-        $pg = $request->input('pg');
-        if($pg == true) {
-            $timeago = Carbon::now()->subMonths(6);
-            $notifications = Notification::whereProfileId($pid)
-                ->whereDate('created_at', '>', $timeago)
-                ->latest()
-                ->simplePaginate(10);
-            $resource = new Fractal\Resource\Collection($notifications, new NotificationTransformer());
-            $res = $this->fractal->createData($resource)->toArray();
-        } else {
-            $this->validate($request, [
-                'page' => 'nullable|integer|min:1|max:10',
-                'limit' => 'nullable|integer|min:1|max:40'
-            ]);
-            $limit = $request->input('limit') ?? 10;
-            $page = $request->input('page') ?? 1;
-            $end = (int) $page * $limit;
-            $start = (int) $end - $limit;
-            $res = NotificationService::get($pid, $start, $end);
+
+		$pid = $request->user()->profile_id;
+		$limit = $request->input('limit', 20);
+
+		$since = $request->input('since_id');
+		$min = $request->input('min_id');
+		$max = $request->input('max_id');
+
+		if(!$since && !$min && !$max) {
+			$min = 1;
+		}
+
+		$maxId = null;
+		$minId = null;
+
+		if($max) {
+			$res = NotificationService::getMax($pid, $max, $limit);
+			$ids = NotificationService::getRankedMaxId($pid, $max, $limit);
+			if(!empty($ids)) {
+				$maxId = max($ids);
+				$minId = min($ids);
+			}
+		} else {
+			$res = NotificationService::getMin($pid, $min ?? $since, $limit);
+			$ids = NotificationService::getRankedMinId($pid, $min ?? $since, $limit);
+			if(!empty($ids)) {
+				$maxId = max($ids);
+				$minId = min($ids);
+			}
+		}
+
+        if(empty($res) && !Cache::has('pf:services:notifications:hasSynced:'.$pid)) {
+        	Cache::put('pf:services:notifications:hasSynced:'.$pid, 1, 1209600);
+        	NotificationService::warmCache($pid, 100, true);
         }
-
-        return response()->json($res);
-    }
-
-    public function accounts(Request $request, $id)
-    {
-        abort_if(!$request->user(), 403);
-        $profile = Profile::findOrFail($id);
-        $resource = new Fractal\Resource\Item($profile, new AccountTransformer());
-        $res = $this->fractal->createData($resource)->toArray();
-
-        return response()->json($res);
-    }
-
-    public function accountFollowers(Request $request, $id)
-    {
-        abort_if(!$request->user(), 403);
-        $profile = Profile::findOrFail($id);
-        $followers = $profile->followers;
-        $resource = new Fractal\Resource\Collection($followers, new AccountTransformer());
-        $res = $this->fractal->createData($resource)->toArray();
-
-        return response()->json($res);
-    }
-
-    public function accountFollowing(Request $request, $id)
-    {
-        abort_if(!$request->user(), 403);
-        $profile = Profile::findOrFail($id);
-        $following = $profile->following;
-        $resource = new Fractal\Resource\Collection($following, new AccountTransformer());
-        $res = $this->fractal->createData($resource)->toArray();
-
-        return response()->json($res);
-    }
-
-    public function accountStatuses(Request $request, $id)
-    {
-        abort_if(!$request->user(), 403);
-        $this->validate($request, [
-            'only_media' => 'nullable',
-            'pinned' => 'nullable',
-            'exclude_replies' => 'nullable',
-            'max_id' => 'nullable|integer|min:1',
-            'since_id' => 'nullable|integer|min:1',
-            'min_id' => 'nullable|integer|min:1',
-            'limit' => 'nullable|integer|min:1|max:24'
-        ]);
-        $limit = $request->limit ?? 20;
-        $max_id = $request->max_id ?? false;
-        $min_id = $request->min_id ?? false;
-        $since_id = $request->since_id ?? false;
-        $only_media = $request->only_media ?? false;
-        $user = Auth::user();
-        $account = Profile::whereNull('status')->findOrFail($id);
-        $statuses = $account->statuses()->getQuery(); 
-        if($only_media == true) {
-            $statuses = $statuses
-                ->whereIn('scope', ['public','unlisted'])
-                ->whereHas('media')
-                ->whereNull('in_reply_to_id')
-                ->whereNull('reblog_of_id');
-        }
-        if($id == $account->id && !$max_id && !$min_id && !$since_id) {
-            $statuses = $statuses->orderBy('id', 'desc')
-                ->paginate($limit);
-        } else if($since_id) {
-            $statuses = $statuses->where('id', '>', $since_id)
-                ->orderBy('id', 'DESC')
-                ->paginate($limit);
-        } else if($min_id) {
-            $statuses = $statuses->where('id', '>', $min_id)
-                ->orderBy('id', 'ASC')
-                ->paginate($limit);
-        } else if($max_id) {
-            $statuses = $statuses->where('id', '<', $max_id)
-                ->orderBy('id', 'DESC')
-                ->paginate($limit);
-        } else {
-            $statuses = $statuses->whereScope('public')->orderBy('id', 'desc')->paginate($limit);
-        }
-        $resource = new Fractal\Resource\Collection($statuses, new StatusTransformer());
-        $res = $this->fractal->createData($resource)->toArray();
 
         return response()->json($res);
     }
@@ -165,8 +99,9 @@ class BaseApiController extends Controller
     public function avatarUpdate(Request $request)
     {
         abort_if(!$request->user(), 403);
+
         $this->validate($request, [
-            'upload'   => 'required|mimes:jpeg,png,gif|max:'.config('pixelfed.max_avatar_size'),
+            'upload'   => 'required|mimetypes:image/jpeg,image/jpg,image/png|max:'.config('pixelfed.max_avatar_size'),
         ]);
 
         try {
@@ -178,7 +113,7 @@ class BaseApiController extends Controller
             $name = $path['name'];
             $public = $path['storage'];
             $currentAvatar = storage_path('app/'.$profile->avatar->media_path);
-            $loc = $request->file('upload')->storeAs($public, $name);
+            $loc = $request->file('upload')->storePubliclyAs($public, $name);
 
             $avatar = Avatar::whereProfileId($profile->id)->firstOrFail();
             $opath = $avatar->media_path;
@@ -198,78 +133,114 @@ class BaseApiController extends Controller
         ]);
     }
 
-    public function showTempMedia(Request $request, $profileId, $mediaId, $timestamp)
-    {
-        abort(400, 'Endpoint deprecated');
-    }
-
-    public function uploadMedia(Request $request)
-    {
-        abort(400, 'Endpoint deprecated');
-    }
-
-    public function deleteMedia(Request $request)
-    {
-        abort(400, 'Endpoint deprecated');
-    }
-
     public function verifyCredentials(Request $request)
     {
-        $user = $request->user();
-        abort_if(!$user, 403);
-        if($user->status != null) {
-            Auth::logout();
-            return redirect('/login');
-        }
-        $key = 'user:last_active_at:id:'.$user->id;
-        $ttl = now()->addMinutes(5);
-        Cache::remember($key, $ttl, function() use($user) {
-            $user->last_active_at = now();
-            $user->save();
-            return;
-        });
-        $resource = new Fractal\Resource\Item($user->profile, new AccountTransformer());
-        $res = $this->fractal->createData($resource)->toArray();
-        return response()->json($res);
-    }
-
-    public function drafts(Request $request)
-    {
-        $user = $request->user();
         abort_if(!$request->user(), 403);
 
-        $medias = Media::whereUserId($user->id)
-            ->whereNull('status_id')
-            ->latest()
-            ->take(13)
-            ->get();
-        $resource = new Fractal\Resource\Collection($medias, new MediaDraftTransformer());
-        $res = $this->fractal->createData($resource)->toArray();
-        return response()->json($res, 200, [], JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES);
+        $user = $request->user();
+        if ($user->status != null) {
+            Auth::logout();
+            abort(403);
+        }
+        $res = AccountService::get($user->profile_id);
+        return response()->json($res);
     }
 
     public function accountLikes(Request $request)
     {
-        $user = $request->user();
         abort_if(!$request->user(), 403);
 
-        $limit = 10;
-        $page = (int) $request->input('page', 1);
+        $this->validate($request, [
+        	'page' => 'sometimes|int|min:1|max:20',
+        	'limit' => 'sometimes|int|min:1|max:10'
+        ]);
 
-        if($page > 20) {
-            return [];
+        $user = $request->user();
+        $limit = $request->input('limit', 10);
+
+        $res = \DB::table('likes')
+        	->whereProfileId($user->profile_id)
+        	->latest()
+        	->simplePaginate($limit)
+        	->map(function($id) {
+        		$status = StatusService::get($id->status_id, false);
+        		$status['favourited'] = true;
+        		return $status;
+        	})
+        	->filter(function($post) {
+        		return $post && isset($post['account']);
+        	})
+        	->values();
+        return response()->json($res);
+    }
+
+    public function archive(Request $request, $id)
+    {
+        abort_if(!$request->user(), 403);
+
+        $status = Status::whereNull('in_reply_to_id')
+            ->whereNull('reblog_of_id')
+            ->whereProfileId($request->user()->profile_id)
+            ->findOrFail($id);
+
+        if($status->scope === 'archived') {
+            return [200];
         }
 
-        $favourites = $user->profile->likes()
-        ->latest()
-        ->simplePaginate($limit)
-        ->pluck('status_id');
+        $archive = new StatusArchived;
+        $archive->status_id = $status->id;
+        $archive->profile_id = $status->profile_id;
+        $archive->original_scope = $status->scope;
+        $archive->save();
 
-        $statuses = Status::find($favourites)->reverse();
+        $status->scope = 'archived';
+        $status->visibility = 'draft';
+        $status->save();
+        StatusService::del($status->id, true);
+        AccountService::syncPostCount($status->profile_id);
 
+        return [200];
+    }
+
+    public function unarchive(Request $request, $id)
+    {
+        abort_if(!$request->user(), 403);
+
+        $status = Status::whereNull('in_reply_to_id')
+            ->whereNull('reblog_of_id')
+            ->whereProfileId($request->user()->profile_id)
+            ->findOrFail($id);
+
+        if($status->scope !== 'archived') {
+            return [200];
+        }
+
+        $archive = StatusArchived::whereStatusId($status->id)
+            ->whereProfileId($status->profile_id)
+            ->firstOrFail();
+
+        $status->scope = $archive->original_scope;
+        $status->visibility = $archive->original_scope;
+        $status->save();
+        $archive->delete();
+        StatusService::del($status->id, true);
+        AccountService::syncPostCount($status->profile_id);
+
+        return [200];
+    }
+
+    public function archivedPosts(Request $request)
+    {
+        abort_if(!$request->user(), 403);
+
+        $statuses = Status::whereProfileId($request->user()->profile_id)
+            ->whereScope('archived')
+            ->orderByDesc('id')
+            ->simplePaginate(10);
+
+        $fractal = new Fractal\Manager();
+        $fractal->setSerializer(new ArraySerializer());
         $resource = new Fractal\Resource\Collection($statuses, new StatusStatelessTransformer());
-        $res = $this->fractal->createData($resource)->toArray();
-
-        return response()->json($res, 200, [], JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES);
+        return $fractal->createData($resource)->toArray();
     }
 }

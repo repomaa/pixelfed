@@ -11,6 +11,8 @@ namespace App\Util\Lexer;
 
 use Illuminate\Support\Str;
 use App\Status;
+use App\Services\AutolinkService;
+use App\Services\TrendingHashtagService;
 
 /**
  * Twitter Extractor Class.
@@ -33,6 +35,7 @@ class Extractor extends Regex
      * @var bool
      */
     protected $extractURLWithoutProtocol = true;
+    protected $activeUsersOnly = false;
 
     /**
      * Provides fluent method chaining.
@@ -46,6 +49,12 @@ class Extractor extends Regex
     public static function create($tweet = null)
     {
         return new self($tweet);
+    }
+
+    public function setActiveUsersOnly($active)
+    {
+    	$this->activeUsersOnly = $active;
+    	return $this;
     }
 
     /**
@@ -172,6 +181,12 @@ class Extractor extends Regex
         $mentionsWithIndices = $this->extractMentionsOrListsWithIndices($tweet);
 
         foreach ($mentionsWithIndices as $mentionWithIndex) {
+        	if($this->activeUsersOnly == true) {
+        		if(!AutolinkService::mentionedUsernameExists($mentionWithIndex['screen_name'])) {
+        			continue;
+        		}
+        	}
+
             $screen_name = mb_strtolower($mentionWithIndex['screen_name']);
             if (empty($screen_name) or in_array($screen_name, $usernamesOnly)) {
                 continue;
@@ -253,6 +268,8 @@ class Extractor extends Regex
             return [];
         }
 
+        $bannedTags = config('app.env') === 'production' ? TrendingHashtagService::getBannedHashtagNames() : [];
+
         preg_match_all(self::$patterns['valid_hashtag'], $tweet, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE);
         $tags = [];
 
@@ -264,7 +281,12 @@ class Extractor extends Regex
             if (preg_match(self::$patterns['end_hashtag_match'], $outer[0])) {
                 continue;
             }
-            if(mb_strlen($hashtag[0]) > 124) {
+            if (count($bannedTags)) {
+                if(in_array(strtolower($hashtag[0]), array_map('strtolower', $bannedTags))) {
+                    continue;
+                }
+            }
+            if (mb_strlen($hashtag[0]) > 124) {
                 continue;
             }
             $tags[] = [
@@ -452,9 +474,13 @@ class Extractor extends Regex
             $start_position = $at[1] > 0 ? StringUtils::strlen(substr($tweet, 0, $at[1])) : $at[1];
             $end_position = $start_position + StringUtils::strlen($at[0]) + StringUtils::strlen($username[0]);
             $screenname = trim($all[0]) == '@'.$username[0] ? $username[0] : trim($all[0]);
-            if(config('app.env') == 'production' && \App\Profile::whereUsername($screenname)->exists() == false) {
-                continue;
-            }
+
+            if($this->activeUsersOnly == true) {
+        		if(!AutolinkService::mentionedUsernameExists($screenname)) {
+        			continue;
+        		}
+        	}
+
             $entity = [
                 'screen_name' => $screenname,
                 'list_slug'   => $list_slug[0],

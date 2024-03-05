@@ -2,6 +2,7 @@
 
 namespace App\Jobs\FollowPipeline;
 
+use App\Follower;
 use App\Notification;
 use Cache;
 use Illuminate\Bus\Queueable;
@@ -11,6 +12,8 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Log;
 use Illuminate\Support\Facades\Redis;
+use App\Services\AccountService;
+use App\Services\FollowerService;
 
 class FollowPipeline implements ShouldQueue
 {
@@ -24,7 +27,7 @@ class FollowPipeline implements ShouldQueue
      * @var bool
      */
     public $deleteWhenMissingModels = true;
-    
+
     /**
      * Create a new job instance.
      *
@@ -46,27 +49,41 @@ class FollowPipeline implements ShouldQueue
         $actor = $follower->actor;
         $target = $follower->target;
 
+        if(!$actor || !$target) {
+            return;
+        }
+
         if($target->domain || !$target->private_key) {
             return;
         }
 
-        try {
-            $notification = new Notification();
-            $notification->profile_id = $target->id;
-            $notification->actor_id = $actor->id;
-            $notification->action = 'follow';
-            $notification->message = $follower->toText();
-            $notification->rendered = $follower->toHtml();
-            $notification->item_id = $target->id;
-            $notification->item_type = "App\Profile";
-            $notification->save();
+        Cache::forget('profile:following:' . $actor->id);
+        Cache::forget('profile:following:' . $target->id);
 
-            $redis = Redis::connection();
+        FollowerService::add($actor->id, $target->id);
 
-            $nkey = config('cache.prefix').':user.'.$target->id.'.notifications';
-            $redis->lpush($nkey, $notification->id);
-        } catch (Exception $e) {
-            Log::error($e);
+        $count = Follower::whereProfileId($actor->id)->count();
+        $actor->following_count = $count;
+        $actor->save();
+        AccountService::del($actor->id);
+
+        $count = Follower::whereFollowingId($target->id)->count();
+        $target->followers_count = $count;
+        $target->save();
+        AccountService::del($target->id);
+
+        if($target->user_id && $target->domain === null) {
+            try {
+                $notification = new Notification();
+                $notification->profile_id = $target->id;
+                $notification->actor_id = $actor->id;
+                $notification->action = 'follow';
+                $notification->item_id = $target->id;
+                $notification->item_type = "App\Profile";
+                $notification->save();
+            } catch (Exception $e) {
+                Log::error($e);
+            }
         }
     }
 }

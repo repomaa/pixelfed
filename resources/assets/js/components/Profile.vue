@@ -1,19 +1,12 @@
 <template>
 <div class="w-100 h-100">
-	<div v-if="owner && layout == 'moment'">
-		<div class="bg-primary shadow">
-			<p class="text-center text-white mb-0 py-3 font-weight-bold border-bottom border-info">
-				<i class="fas fa-exclamation-triangle fa-lg mr-2"></i> The Moment UI layout has been deprecated and will be removed in a future release.
-			</p>
-		</div>
-	</div>
 	<div v-if="isMobile" class="bg-white p-3 border-bottom">
 		<div class="d-flex justify-content-between align-items-center">
 			<div @click="goBack" class="cursor-pointer">
 				<i class="fas fa-chevron-left fa-lg"></i>
 			</div>
 			<div class="font-weight-bold">
-				{{this.profileUsername}}								
+				{{this.profileUsername}}
 
 			</div>
 			<div>
@@ -43,10 +36,10 @@
 									<div class="row">
 										<div class="col-4">
 											<div v-if="hasStory" class="has-story cursor-pointer shadow-sm" @click="storyRedirect()">
-												<img :alt="profileUsername + '\'s profile picture'" class="rounded-circle" :src="profile.avatar" width="77px" height="77px">
+												<img :alt="profileUsername + '\'s profile picture'" class="rounded-circle" :src="profile.avatar" width="77px" height="77px" onerror="this.onerror=null;this.src='/storage/avatars/default.png?v=0';">
 											</div>
 											<div v-else>
-												<img :alt="profileUsername + '\'s profile picture'" class="rounded-circle border" :src="profile.avatar" width="77px" height="77px">
+												<img :alt="profileUsername + '\'s profile picture'" class="rounded-circle border" :src="profile.avatar" width="77px" height="77px" onerror="this.onerror=null;this.src='/storage/avatars/default.png?v=0';">
 											</div>
 										</div>
 										<div class="col-8">
@@ -85,10 +78,10 @@
 								<!-- DESKTOP PROFILE PICTURE -->
 								<div class="d-none d-md-block pb-3">
 									<div v-if="hasStory" class="has-story-lg cursor-pointer shadow-sm" @click="storyRedirect()">
-										<img :alt="profileUsername + '\'s profile picture'" class="rounded-circle box-shadow cursor-pointer" :src="profile.avatar" width="150px" height="150px">
+										<img :alt="profileUsername + '\'s profile picture'" class="rounded-circle box-shadow cursor-pointer" :src="profile.avatar" width="150px" height="150px" onerror="this.onerror=null;this.src='/storage/avatars/default.png?v=0';">
 									</div>
 									<div v-else>
-										<img :alt="profileUsername + '\'s profile picture'" class="rounded-circle box-shadow" :src="profile.avatar" width="150px" height="150px">
+										<img :alt="profileUsername + '\'s profile picture'" class="rounded-circle box-shadow" :src="profile.avatar" width="150px" height="150px" onerror="this.onerror=null;this.src='/storage/avatars/default.png?v=0';">
 									</div>
 									<p v-if="sponsorList.patreon || sponsorList.liberapay || sponsorList.opencollective" class="text-center mt-3">
 										<button type="button" @click="showSponsorModal" class="btn btn-outline-secondary font-weight-bold py-0">
@@ -103,10 +96,6 @@
 							<div class="profile-details">
 								<div class="d-none d-md-flex username-bar pb-3 align-items-center">
 									<span class="font-weight-ultralight h3 mb-0">{{profile.username}}</span>
-									<span class="pl-1 pb-2 fa-stack" v-if="profile.is_admin" title="Admin Account" data-toggle="tooltip">
-										<i class="fas fa-certificate fa-lg text-danger fa-stack-1x"></i>
-										<i class="fas fa-crown text-white fa-sm fa-stack-1x" style="font-size:9px;"></i>
-									</span>
 									<span v-if="profile.id != user.id && user.hasOwnProperty('id')">
 										<span class="pl-4" v-if="relationship.following == true">
 											<a :href="'/account/direct/t/'+profile.id"  class="btn btn-outline-secondary font-weight-bold btn-sm py-1 text-dark mr-2 px-3 btn-sec-alt" style="border:1px solid #dbdbdb;" data-toggle="tooltip" title="Message">Message</a>
@@ -121,7 +110,7 @@
 									</span>
 									<span class="pl-4">
 										<a class="fas fa-ellipsis-h fa-lg text-dark text-decoration-none" href="#" @click.prevent="visitorMenu"></a>
-									</span> 
+									</span>
 								</div>
 								<div class="font-size-16px">
 									<div class="d-none d-md-inline-flex profile-stats pb-3">
@@ -144,19 +133,29 @@
 											</a>
 										</div>
 									</div>
-									<p class="mb-0 d-flex align-items-center">
-										<span class="font-weight-bold pr-3">{{profile.display_name}}</span>
+									<div class="d-md-flex align-items-center mb-1 text-break">
+										<div class="font-weight-bold mr-1">{{profile.display_name}}</div>
+										<div v-if="profile.pronouns" class="text-muted small">{{profile.pronouns.join('/')}}</div>
+									</div>
+									<p v-if="profile.note" class="mb-0" v-html="profile.note"></p>
+									<p v-if="profile.website"><a :href="profile.website" class="profile-website small" rel="me external nofollow noopener" target="_blank">{{formatWebsite(profile.website)}}</a></p>
+									<p class="d-flex small text-muted align-items-center">
+										<span v-if="profile.is_admin" class="btn btn-outline-danger btn-sm py-0 mr-3" title="Admin Account" data-toggle="tooltip">
+											Admin
+										</span>
+										<span v-if="relationship && relationship.followed_by" class="btn btn-outline-muted btn-sm py-0 mr-3">Follows You</span>
+										<span>
+											Joined {{joinedAtFormat(profile.created_at)}}
+										</span>
 									</p>
-									<div v-if="profile.note" class="mb-0" v-html="profile.note"></div>
-									<p v-if="profile.website" class=""><a :href="profile.website" class="profile-website" rel="me external nofollow noopener" target="_blank" @click.prevent="remoteRedirect(profile.website)">{{truncate(profile.website,24)}}</a></p>
 								</div>
 							</div>
 						</div>
 					</div>
 				</div>
 			</div>
-			<div class="d-block d-md-none my-0 pt-3 border-bottom">
-				<p v-if="user && user.hasOwnProperty('id')" class="pt-3">
+			<div v-if="user && user.hasOwnProperty('id')" class="d-block d-md-none my-0 pt-3 border-bottom">
+				<p class="pt-3">
 					<button v-if="owner" class="btn btn-outline-secondary bg-white btn-sm py-1 btn-block text-center font-weight-bold text-dark border border-lighter" @click.prevent="redirect('/settings/home')">Edit Profile</button>
 					<button v-if="!owner && relationship.following" class="btn btn-outline-secondary bg-white btn-sm py-1 px-5 font-weight-bold text-dark border border-lighter" @click="followProfile">&nbsp;&nbsp; Unfollow &nbsp;&nbsp;</button>
 					<button v-if="!owner && !relationship.following" class="btn btn-primary btn-sm py-1 px-5 font-weight-bold" @click="followProfile">{{relationship.followed_by ? 'Follow Back' : '&nbsp;&nbsp;&nbsp;&nbsp; Follow &nbsp;&nbsp;&nbsp;&nbsp;'}}</button>
@@ -175,68 +174,68 @@
 					<li v-if="owner" class="nav-item border-top">
 						<a :class="this.mode == 'bookmarks' ? 'nav-link text-dark' : 'nav-link'" href="#" v-on:click.prevent="switchMode('bookmarks')"><i class="fas fa-bookmark"></i> <span class="d-none d-md-inline-block small pl-1">SAVED</span></a>
 					</li>
+					<li v-if="owner" class="nav-item border-top">
+						<a :class="this.mode == 'archives' ? 'nav-link text-dark' : 'nav-link'" href="#" v-on:click.prevent="switchMode('archives')"><i class="far fa-folder-open"></i> <span class="d-none d-md-inline-block small pl-1">ARCHIVES</span></a>
+					</li>
 				</ul>
 			</div>
 
 			<div class="container px-0">
 				<div class="profile-timeline mt-md-4">
-					<div class="row" v-if="mode == 'grid'">
-						<div class="col-4 p-1 p-md-3" v-for="(s, index) in timeline" :key="'tlob:'+index">
-							<a class="card info-overlay card-md-border-0" :href="statusUrl(s)" v-once>
-								<div class="square">
-									<div v-if="s.sensitive" class="square-content">
-										<div class="info-overlay-text-label">
+					<div v-if="mode == 'grid'">
+						<div class="row">
+							<div class="col-4 p-1 p-md-3" v-for="(s, index) in timeline" :key="'tlob:'+index">
+								<a class="card info-overlay card-md-border-0" :href="statusUrl(s)">
+									<div class="square">
+										<div v-if="s.sensitive" class="square-content">
+											<div class="info-overlay-text-label">
+												<h5 class="text-white m-auto font-weight-bold">
+													<span>
+														<span class="far fa-eye-slash fa-lg p-2 d-flex-inline"></span>
+													</span>
+												</h5>
+											</div>
+											<blur-hash-canvas
+												width="32"
+												height="32"
+												:hash="s.media_attachments[0].blurhash"
+												/>
+										</div>
+										<div v-else class="square-content">
+											<blur-hash-image
+												width="32"
+												height="32"
+												:hash="s.media_attachments[0].blurhash"
+												:src="s.media_attachments[0].preview_url"
+												/>
+										</div>
+										<span v-if="s.pf_type == 'photo:album'" class="float-right mr-3 post-icon"><i class="fas fa-images fa-2x"></i></span>
+										<span v-if="s.pf_type == 'video'" class="float-right mr-3 post-icon"><i class="fas fa-video fa-2x"></i></span>
+										<span v-if="s.pf_type == 'video:album'" class="float-right mr-3 post-icon"><i class="fas fa-film fa-2x"></i></span>
+										<div class="info-overlay-text">
 											<h5 class="text-white m-auto font-weight-bold">
 												<span>
-													<span class="far fa-eye-slash fa-lg p-2 d-flex-inline"></span>
+													<span class="far fa-comment fa-lg p-2 d-flex-inline"></span>
+													<span class="d-flex-inline">{{formatCount(s.reply_count)}}</span>
 												</span>
 											</h5>
 										</div>
-										<blur-hash-canvas
-											width="32"
-											height="32"
-											:hash="s.media_attachments[0].blurhash"
-											/>
 									</div>
-									<div v-else class="square-content">
-										
-										<blur-hash-image
-											width="32"
-											height="32"
-											:hash="s.media_attachments[0].blurhash"
-											:src="s.media_attachments[0].preview_url"
-											/>
-									</div>
-									<span v-if="s.pf_type == 'photo:album'" class="float-right mr-3 post-icon"><i class="fas fa-images fa-2x"></i></span>
-									<span v-if="s.pf_type == 'video'" class="float-right mr-3 post-icon"><i class="fas fa-video fa-2x"></i></span>
-									<span v-if="s.pf_type == 'video:album'" class="float-right mr-3 post-icon"><i class="fas fa-film fa-2x"></i></span>
-									<div class="info-overlay-text">
-										<h5 class="text-white m-auto font-weight-bold">
-											<span>
-												<span class="far fa-heart fa-lg p-2 d-flex-inline"></span>
-												<span class="d-flex-inline">{{formatCount(s.favourites_count)}}</span>
-											</span>
-											<span>
-												<span class="far fa-comment fa-lg p-2 d-flex-inline"></span>
-												<span class="d-flex-inline">{{formatCount(s.reply_count)}}</span>
-											</span>
-										</h5>
-									</div>
+								</a>
+							</div>
+							<div v-if="timeline.length == 0" class="col-12">
+								<div class="py-5 text-center text-muted">
+									<p><i class="fas fa-camera-retro fa-2x"></i></p>
+									<p class="h2 font-weight-light pt-3">No posts yet</p>
 								</div>
-							</a>
-						</div>
-						<div v-if="timeline.length == 0" class="col-12">
-							<div class="py-5 text-center text-muted">
-								<p><i class="fas fa-camera-retro fa-2x"></i></p>
-								<p class="h2 font-weight-light pt-3">No posts yet</p>
 							</div>
 						</div>
-					</div>
-					<div v-if="timeline.length && mode == 'grid'">
-						<infinite-loading @infinite="infiniteTimeline">
-							<div slot="no-more"></div>
-							<div slot="no-results"></div>
-						</infinite-loading>
+						<div v-if="timeline.length">
+							<infinite-loading @infinite="infiniteTimeline">
+								<div slot="no-more"></div>
+								<div slot="no-results"></div>
+							</infinite-loading>
+						</div>
 					</div>
 					<div v-if="mode == 'bookmarks'">
 						<div v-if="bookmarksLoading">
@@ -261,10 +260,6 @@
 											<div class="info-overlay-text">
 												<h5 class="text-white m-auto font-weight-bold">
 													<span>
-														<span class="far fa-heart fa-lg p-2 d-flex-inline"></span>
-														<span class="d-flex-inline">{{s.favourites_count}}</span>
-													</span>
-													<span>
 														<span class="fas fa-retweet fa-lg p-2 d-flex-inline"></span>
 														<span class="d-flex-inline">{{s.reblogs_count}}</span>
 													</span>
@@ -282,8 +277,9 @@
 							</div>
 						</div>
 					</div>
+
 					<div v-if="mode == 'collections'">
-						<div v-if="collections.length" class="row">
+						<div v-if="collections.length && collectionsLoaded" class="row">
 							<div class="col-4 p-1 p-sm-2 p-md-3" v-for="(c, index) in collections">
 								<a class="card info-overlay card-md-border-0" :href="c.url">
 									<div class="square">
@@ -300,101 +296,33 @@
 							</div>
 						</div>
 					</div>
-				</div>
-			</div>
-		</div>
 
-		<div v-if="layout == 'moment'" class="mt-3">
-			<div :class="momentBackground()" style="width:100%;min-height:274px;">
-			</div>
-			<div class="bg-white border-bottom">
-				<div class="container">
-					<div class="row">
-						<div class="col-12 row mx-0">
-							<div class="col-4 text-left mt-2">
-								<span v-if="relationship && relationship.followed_by">
-									<span class="bg-light border border-secondary font-weight-bold small py-1 px-2 text-muted rounded">FOLLOWS YOU</span>
-								</span>
-								<span v-if="profile.is_admin">
-									<span class="bg-light border border-danger font-weight-bold small py-1 px-2 text-danger rounded">ADMIN</span>
-								</span>
+					<div v-if="mode == 'archives'">
+						<div v-if="archives.length" class="col-12 col-md-8 offset-md-2 px-0 mb-sm-3 timeline mt-5">
+							<div class="alert alert-info">
+								<p class="mb-0">Posts you archive can only be seen by you.</p>
+								<p class="mb-0">For more information see the <a href="/site/kb/sharing-media">Sharing Media</a> help center page.</p>
 							</div>
-							<div class="col-4 text-center">
-								<div class="d-block d-md-none">
-									<img class="rounded-circle box-shadow" :src="profile.avatar" width="110px" height="110px" style="margin-top:-60px; border: 5px solid #fff">
-								</div>
-								<div class="d-none d-md-block">
-									<img class="rounded-circle box-shadow" :src="profile.avatar" width="172px" height="172px" style="margin-top:-90px; border: 5px solid #fff">
-								</div>
-							</div>
-							<div class="col-4 text-right mt-2">
-								<span class="d-none d-md-inline-block pl-4">
-									<a :href="'/users/'+profile.username+'.atom'" class="fas fa-rss fa-lg text-muted text-decoration-none"></a>
-								</span>
-								<span class="pl-md-4 pl-sm-2" v-if="owner">
-									<a class="fas fa-cog fa-lg text-muted text-decoration-none" href="/settings/home"></a>
-								</span>
-								<span class="pl-md-4 pl-sm-2" v-if="profile.id != user.id && user.hasOwnProperty('id')">
-									<a class="fas fa-cog fa-lg text-muted text-decoration-none" href="#" @click.prevent="visitorMenu"></a>
-								</span>
-								<span v-if="profile.id != user.id && user.hasOwnProperty('id')">
-									<span class="pl-md-4 pl-sm-2" v-if="relationship.following == true">
-										<button type="button"  class="btn btn-outline-secondary font-weight-bold btn-sm" @click.prevent="followProfile()">Unfollow</button>
-									</span>
-									<span class="pl-md-4 pl-sm-2" v-else>
-										<button type="button" class="btn btn-primary font-weight-bold btn-sm" @click.prevent="followProfile()">Follow</button>
-									</span>
-								</span>
-							</div>
-						</div>
 
-						<div class="col-12 text-center">
-							<div class="profile-details my-3">
-								<p class="font-weight-ultralight h2 text-center">{{profile.username}}</p>
-								<div v-if="profile.note" class="text-center text-muted p-3" v-html="profile.note"></div>
-								<div class="pb-3 text-muted text-center">
-									<a class="text-lighter" :href="profile.url">
-										<span class="font-weight-bold">{{formatCount(profile.statuses_count)}}</span>
-										Posts
-									</a>
-									<a v-if="profileSettings.followers.count" class="text-lighter cursor-pointer px-3" v-on:click="followersModal()">
-										<span class="font-weight-bold">{{formatCount(profile.followers_count)}}</span>
-										Followers
-									</a>
-									<a v-if="profileSettings.following.count" class="text-lighter cursor-pointer" v-on:click="followingModal()">
-										<span class="font-weight-bold">{{formatCount(profile.following_count)}}</span>
-										Following
-									</a>
-								</div>
+							<div v-for="(status, index) in archives">
+								<status-card
+									:class="{ 'border-top': index === 0 }"
+									:status="status"
+									:reaction-bar="false"
+								/>
 							</div>
+
+							<infinite-loading @infinite="archivesInfiniteLoader">
+								<div slot="no-more"></div>
+								<div slot="no-results"></div>
+							</infinite-loading>
 						</div>
-					</div>
-				</div>
-			</div>
-			<div class="container-fluid">
-				<div class="profile-timeline mt-md-4">
-					<div class="" v-if="mode == 'grid'">
-						<masonry
-						  :cols="{default: 3, 700: 2, 400: 1}"
-						  :gutter="{default: '5px'}"
-						>
-							<div class="p-1" v-for="(s, index) in timeline">
-								<a :class="[s.sensitive ? 'card info-overlay card-md-border-0' : s.media_attachments[0].filter_class + ' card info-overlay card-md-border-0']" :href="statusUrl(s)">
-									<img :src="previewUrl(s)" class="img-fluid w-100">
-								</a>
-							</div>
-						</masonry>
-					</div>
-					<div v-if="timeline.length">
-						<infinite-loading @infinite="infiniteTimeline">
-							<div slot="no-more"></div>
-							<div slot="no-results"></div>
-						</infinite-loading>
 					</div>
 				</div>
 			</div>
 		</div>
 	</div>
+
 	<b-modal
 		v-if="profile && following"
 		ref="followingModal"
@@ -405,53 +333,48 @@
 		title="Following"
 		body-class="list-group-flush py-3 px-0"
 		dialog-class="follow-modal">
-		<div v-if="!loading" class="list-group" style="min-height: 60vh;">
-			<div v-if="owner == true" class="list-group-item border-0 pt-0 px-0 mt-n2 mb-3">
-				<span class="d-flex px-4 pb-0 align-items-center">
-					<i class="fas fa-search text-lighter"></i>
-					<input type="text" class="form-control border-0 shadow-0 no-focus" placeholder="Search Following..." v-model="followingModalSearch" v-on:keyup="followingModalSearchHandler">
-				</span>
+		<div v-if="!followingLoading" class="list-group" style="max-height: 60vh;">
+			<div v-if="!following.length" class="list-group-item border-0">
+				<p class="text-center mb-0 font-weight-bold text-muted py-5">
+					<span class="text-dark">{{profileUsername}}</span> is not following yet</p>
 			</div>
-			<div v-if="owner == true" class="btn-group rounded-0 mt-n3 mb-3 border-top" role="group" aria-label="Following">
-					<!-- <button type="button" :class="[followingModalTab == 'following' ? ' btn btn-light py-3 rounded-0 font-weight-bold modal-tab-active' : 'btn btn-light py-3 rounded-0 font-weight-bold']" style="font-size: 12px;">FOLLOWING</button> -->
-					<!-- <button type="button" class="btn btn-light py-3 rounded-0 text-muted font-weight-bold" style="font-size: 12px;">MUTED</button>
-					<button type="button" class="btn btn-light py-3 rounded-0 text-muted font-weight-bold" style="font-size: 12px;">BLOCKED</button> -->
-			</div>
-			<div v-else class="btn-group rounded-0 mt-n3 mb-3" role="group" aria-label="Following">
-					<!-- <button type="button" class="btn btn-light py-3 rounded-0 border-primary border-left-0 border-right-0 border-top-0 font-weight-bold" style="font-size: 12px;" @click="followingModalTab = 'following'">FOLLOWING</button>
-					<button type="button" class="btn btn-light py-3 rounded-0 text-muted font-weight-bold" style="font-size: 12px;" @click="followingModalTab = 'mutual'">MUTUAL</button>
-					<button type="button" class="btn btn-light py-3 rounded-0 text-muted font-weight-bold" style="font-size: 12px;" @click="followingModalTab = 'blocked'">BLOCKED</button> -->
-			</div>
-			<div class="list-group-item border-0 py-1" v-for="(user, index) in following" :key="'following_'+index">
-				<div class="media">
-					<a :href="user.url">
-						<img class="mr-3 rounded-circle box-shadow" :src="user.avatar" :alt="user.username + '’s avatar'" width="30px" loading="lazy">
-					</a>
-					<div class="media-body text-truncate">
-						<p class="mb-0" style="font-size: 14px">
-							<a :href="user.url" class="font-weight-bold text-dark">
-								{{user.username}}
-							</a>
-						</p>
-						<p v-if="!user.local" class="text-muted mb-0 text-truncate mr-3" style="font-size: 14px" :title="user.acct" data-toggle="dropdown" data-placement="bottom">
-							<span class="font-weight-bold">{{user.acct.split('@')[0]}}</span><span class="text-lighter">&commat;{{user.acct.split('@')[1]}}</span>
-						</p>
-						<p v-else class="text-muted mb-0 text-truncate" style="font-size: 14px">
-							{{user.display_name}}
-						</p>
-					</div>
-					<div v-if="owner">
-						<a class="btn btn-outline-dark btn-sm font-weight-bold" href="#" @click.prevent="followModalAction(user.id, index, 'following')">Following</a>
+			<div v-else>
+				<div class="list-group-item border-0 py-1 mb-1" v-for="(user, index) in following" :key="'following_'+index">
+					<div class="media">
+						<a :href="profileUrlRedirect(user)">
+							<img class="mr-3 rounded-circle box-shadow" :src="user.avatar" :alt="user.username + '’s avatar'" width="30px" loading="lazy" onerror="this.src='/storage/avatars/default.jpg?v=0';this.onerror=null;" v-once>
+						</a>
+						<div class="media-body text-truncate">
+							<p class="mb-0" style="font-size: 14px">
+								<a :href="profileUrlRedirect(user)" class="font-weight-bold text-dark">
+									{{user.username}}
+								</a>
+							</p>
+							<p v-if="!user.local" class="text-muted mb-0 text-break mr-3" style="font-size: 14px" :title="user.acct" data-toggle="dropdown" data-placement="bottom">
+								<span class="font-weight-bold">{{user.acct.split('@')[0]}}</span><span class="text-lighter">&commat;{{user.acct.split('@')[1]}}</span>
+							</p>
+							<p v-else class="text-muted mb-0 text-truncate" style="font-size: 14px">
+								{{user.display_name ? user.display_name : user.username}}
+							</p>
+						</div>
+						<div v-if="owner">
+							<a class="btn btn-outline-dark btn-sm font-weight-bold" href="#" @click.prevent="followModalAction(user.id, index, 'following')">Following</a>
+						</div>
 					</div>
 				</div>
-			</div>
-			<div v-if="followingModalSearch && following.length == 0" class="list-group-item border-0">
-				<div class="list-group-item border-0 pt-5">
-					<p class="p-3 text-center mb-0 lead">No Results Found</p>
+				<div v-if="!followingLoading && following.length == 0" class="list-group-item border-0">
+					<div class="list-group-item border-0 pt-5">
+						<p class="p-3 text-center mb-0 lead">No Results Found</p>
+					</div>
+				</div>
+				<div v-if="following.length > 0 && followingMore" class="list-group-item text-center" v-on:click="followingLoadMore()">
+					<p class="mb-0 small text-muted font-weight-light cursor-pointer">Load more</p>
 				</div>
 			</div>
-			<div v-if="following.length > 0 && followingMore" class="list-group-item text-center" v-on:click="followingLoadMore()">
-				<p class="mb-0 small text-muted font-weight-light cursor-pointer">Load more</p>
+		</div>
+		<div v-else class="text-center py-5">
+			<div class="spinner-border" role="status">
+				<span class="sr-only">Loading...</span>
 			</div>
 		</div>
 	</b-modal>
@@ -464,31 +387,42 @@
 		body-class="list-group-flush py-3 px-0"
 		dialog-class="follow-modal"
 		>
-		<div class="list-group">
-			<div v-if="followers.length == 0" class="list-group-item border-0">
+		<div v-if="!followerLoading" class="list-group" style="max-height: 60vh;">
+			<div v-if="!followerLoading && !followers.length" class="list-group-item border-0">
 				<p class="text-center mb-0 font-weight-bold text-muted py-5">
 					<span class="text-dark">{{profileUsername}}</span> has no followers yet</p>
 			</div>
-			<div class="list-group-item border-0 py-1" v-for="(user, index) in followers" :key="'follower_'+index">
-				<div class="media mb-0">
-					<a :href="user.url">
-						<img class="mr-3 rounded-circle box-shadow" :src="user.avatar" :alt="user.username + '’s avatar'" width="30px" height="30px" loading="lazy">
-					</a>
-					<div class="media-body mb-0">
-						<p class="mb-0" style="font-size: 14px">
-							<a :href="user.url" class="font-weight-bold text-dark">
-								{{user.username}}
-							</a>
-						</p>
-						<p class="text-secondary mb-0" style="font-size: 13px">
-							{{user.display_name}}
-						</p>
+
+			<div v-else>
+				<div class="list-group-item border-0 py-1 mb-1" v-for="(user, index) in followers" :key="'follower_'+index">
+					<div class="media mb-0">
+						<a :href="profileUrlRedirect(user)">
+							<img class="mr-3 rounded-circle box-shadow" :src="user.avatar" :alt="user.username + '’s avatar'" width="30px" height="30px" loading="lazy" onerror="this.src='/storage/avatars/default.jpg?v=0';this.onerror=null;" v-once>
+						</a>
+						<div class="media-body mb-0">
+							<p class="mb-0" style="font-size: 14px">
+								<a :href="profileUrlRedirect(user)" class="font-weight-bold text-dark">
+									{{user.username}}
+								</a>
+							</p>
+							<p v-if="!user.local" class="text-muted mb-0 text-break mr-3" style="font-size: 14px" :title="user.acct" data-toggle="dropdown" data-placement="bottom">
+								<span class="font-weight-bold">{{user.acct.split('@')[0]}}</span><span class="text-lighter">&commat;{{user.acct.split('@')[1]}}</span>
+							</p>
+							<p v-else class="text-muted mb-0 text-truncate" style="font-size: 14px">
+								{{user.display_name ? user.display_name : user.username}}
+							</p>
+						</div>
+						<!-- <button class="btn btn-primary font-weight-bold btn-sm py-1">FOLLOW</button> -->
 					</div>
-					<!-- <button class="btn btn-primary font-weight-bold btn-sm py-1">FOLLOW</button> -->
+				</div>
+				<div v-if="followers.length && followerMore" class="list-group-item text-center" v-on:click="followersLoadMore()">
+					<p class="mb-0 small text-muted font-weight-light cursor-pointer">Load more</p>
 				</div>
 			</div>
-			<div v-if="followers.length && followerMore" class="list-group-item text-center" v-on:click="followersLoadMore()">
-				<p class="mb-0 small text-muted font-weight-light cursor-pointer">Load more</p>
+		</div>
+		<div v-else class="text-center py-5">
+			<div class="spinner-border" role="status">
+				<span class="sr-only">Loading...</span>
 			</div>
 		</div>
 	</b-modal>
@@ -559,20 +493,20 @@
 		</div>
 	</b-modal>
 	<b-modal ref="embedModal"
-	id="ctx-embed-modal"
-	hide-header
-	hide-footer
-	centered
-	rounded
-	size="md"
-	body-class="p-2 rounded">
-	<div>
-		<textarea class="form-control disabled text-monospace" rows="6" style="overflow-y:hidden;border: 1px solid #efefef; font-size: 12px; line-height: 18px; margin: 0 0 7px;resize:none;" v-model="ctxEmbedPayload" disabled=""></textarea>
-		<hr>
-		<button :class="copiedEmbed ? 'btn btn-primary btn-block btn-sm py-1 font-weight-bold disabed': 'btn btn-primary btn-block btn-sm py-1 font-weight-bold'" @click="ctxCopyEmbed" :disabled="copiedEmbed">{{copiedEmbed ? 'Embed Code Copied!' : 'Copy Embed Code'}}</button>
-		<p class="mb-0 px-2 small text-muted">By using this embed, you agree to our <a href="/site/terms">Terms of Use</a></p>
-	</div>
-</b-modal>
+		id="ctx-embed-modal"
+		hide-header
+		hide-footer
+		centered
+		rounded
+		size="md"
+		body-class="p-2 rounded">
+		<div>
+			<textarea class="form-control disabled text-monospace" rows="6" style="overflow-y:hidden;border: 1px solid #efefef; font-size: 12px; line-height: 18px; margin: 0 0 7px;resize:none;" v-model="ctxEmbedPayload" disabled=""></textarea>
+			<hr>
+			<button :class="copiedEmbed ? 'btn btn-primary btn-block btn-sm py-1 font-weight-bold disabed': 'btn btn-primary btn-block btn-sm py-1 font-weight-bold'" @click="ctxCopyEmbed" :disabled="copiedEmbed">{{copiedEmbed ? 'Embed Code Copied!' : 'Copy Embed Code'}}</button>
+			<p class="mb-0 px-2 small text-muted">By using this embed, you agree to our <a href="/site/terms">Terms of Use</a></p>
+		</div>
+	</b-modal>
 </div>
 </template>
 <style type="text/css" scoped>
@@ -652,7 +586,8 @@
 </style>
 <script type="text/javascript">
 	import VueMasonry from 'vue-masonry-css'
-
+	import StatusCard from './partials/StatusCard.vue';
+	import { parseLinkHeader } from '@web3-storage/parse-link-header';
 
 	export default {
 		props: [
@@ -661,6 +596,11 @@
 			'profile-settings',
 			'profile-username'
 		],
+
+		components: {
+			StatusCard,
+		},
+
 		data() {
 			return {
 				ids: [],
@@ -672,48 +612,80 @@
 				max_id: 0,
 				loading: true,
 				owner: false,
-				layout: this.profileLayout,
+				layout: 'metro',
 				mode: 'grid',
-				modes: ['grid', 'collections', 'bookmarks'],
+				modes: ['grid', 'collections', 'bookmarks', 'archives'],
 				modalStatus: false,
 				relationship: {},
 				followers: [],
-				followerCursor: 1,
+				followerCursor: null,
 				followerMore: true,
+				followerLoading: true,
 				following: [],
-				followingCursor: 1,
+				followingCursor: null,
 				followingMore: true,
+				followingLoading: true,
 				warning: false,
 				sponsorList: [],
 				bookmarks: [],
 				bookmarksPage: 2,
 				collections: [],
+				collectionsLoaded: false,
 				collectionsPage: 2,
 				isMobile: false,
 				ctxEmbedPayload: null,
 				copiedEmbed: false,
 				hasStory: null,
-				followingModalSearch: null,
-				followingModalSearchCache: null,
 				followingModalTab: 'following',
 				bookmarksLoading: true,
+				archives: [],
+				archivesPage: 2
 			}
 		},
 		beforeMount() {
-			this.fetchRelationships();
 			this.fetchProfile();
 			let u = new URLSearchParams(window.location.search);
-			let forceMetro = localStorage.getItem('pf_metro_ui.exp.forceMetro') == 'true';
-			if(forceMetro == true || u.has('ui') && u.get('ui') == 'metro' && this.layout != 'metro') {
-				this.layout = 'metro';
-			}
-			
+			this.layout = 'metro';
+
 			if(this.layout == 'metro' && u.has('t')) {
 				if(this.modes.indexOf(u.get('t')) != -1) {
 					if(u.get('t') == 'bookmarks') {
 						return;
 					}
 					this.mode = u.get('t');
+				}
+			}
+
+			if(u.has('m') && this.modes.includes(u.get('m'))) {
+				this.mode = u.get('m');
+
+				if(this.mode == 'bookmarks') {
+					axios.get('/api/local/bookmarks')
+					.then(res => {
+						this.bookmarks = res.data;
+						this.bookmarksLoading = false;
+					}).catch(err => {
+						this.mode = 'grid';
+					});
+				}
+
+				if(this.mode == 'collections') {
+					axios.get('/api/local/profile/collections/' + this.profileId)
+					.then(res => {
+						this.collections = res.data
+						this.collectionsLoaded = true;
+					}).catch(err => {
+						this.mode = 'grid';
+					});
+				}
+
+				if(this.mode == 'archives') {
+					axios.get('/api/pixelfed/v2/statuses/archives')
+					.then(res => {
+						this.archives = res.data;
+					}).catch(err => {
+						this.mode = 'grid';
+					});
 				}
 			}
 
@@ -732,17 +704,8 @@
 					this.user = res.data;
 					window._sharedData.curUser = res.data;
 					window.App.util.navatar();
-					if(res.data.id == this.profileId || this.relationship.following == true) {
-						axios.get('/api/stories/v0/exists/' + this.profileId)
-						.then(res => {
-							this.hasStory = res.data == true;
-						})
-					}
+					this.fetchRelationships();
 				});
-			}
-			if(window.outerWidth < 576) {
-				$('nav.navbar').hide();
-				this.isMobile = true;
 			}
 		},
 
@@ -756,7 +719,6 @@
 					this.profile = res.data;
 				}).then(res => {
 					this.fetchPosts();
-
 				});
 			},
 
@@ -813,7 +775,7 @@
 							if(self.ids.indexOf(d.id) == -1) {
 								self.timeline.push(d);
 								self.ids.push(d.id);
-							} 
+							}
 						});
 						let max = Math.min(...this.ids);
 						if(max == this.max_id) {
@@ -845,19 +807,15 @@
 			},
 
 			switchMode(mode) {
-				this.mode = _.indexOf(this.modes, mode) ? mode : 'grid';
-				if(this.mode == 'bookmarks' && this.bookmarks.length == 0) {
-					axios.get('/api/local/bookmarks')
-					.then(res => {
-						this.bookmarks = res.data;
-						this.bookmarksLoading = false;
-					});
-				}
-				if(this.mode == 'collections' && this.collections.length == 0) {
-					axios.get('/api/local/profile/collections/' + this.profileId)
-					.then(res => {
-						this.collections = res.data
-					});
+				if(mode == 'grid') {
+					this.mode = mode;
+				} else if(mode == 'bookmarks' && this.bookmarks.length) {
+					this.mode = 'bookmarks';
+				} else if(mode == 'collections' && this.collections.length) {
+					this.mode = 'collections';
+				} else {
+					window.location.href = '/' + this.profileUsername + '?m=' + mode;
+					return;
 				}
 			},
 
@@ -985,6 +943,12 @@
 							this.warning = true;
 						}
 					}
+					if(this.user.id == this.profileId || this.relationship.following == true) {
+						axios.get('/api/web/stories/v1/exists/' + this.profileId)
+						.then(res => {
+							this.hasStory = (res.data == true);
+						})
+					}
 				});
 			},
 
@@ -1001,7 +965,11 @@
 					this.$refs.visitorContextMenu.hide();
 					swal('Success', 'You have successfully muted ' + this.profile.acct, 'success');
 				}).catch(err => {
-					swal('Error', 'Something went wrong. Please try again later.', 'error');
+					if(err.response.status == 422) {
+						swal('Error', err.response.data.error, 'error');
+					} else {
+						swal('Error', 'Something went wrong. Please try again later.', 'error');
+					}
 				});
 			},
 
@@ -1036,7 +1004,11 @@
 					this.$refs.visitorContextMenu.hide();
 					swal('Success', 'You have successfully blocked ' + this.profile.acct, 'success');
 				}).catch(err => {
-					swal('Error', 'Something went wrong. Please try again later.', 'error');
+					if(err.response.status == 422) {
+						swal('Error', err.response.data.error, 'error');
+					} else {
+						swal('Error', 'Something went wrong. Please try again later.', 'error');
+					}
 				});
 			},
 
@@ -1077,19 +1049,22 @@
 				if($('body').hasClass('loggedIn') == false) {
 					return;
 				}
-				axios.post('/i/follow', {
-					item: this.profileId
-				}).then(res => {
-					this.$refs.visitorContextMenu.hide();
-					if(this.relationship.following) {
+				this.$refs.visitorContextMenu.hide();
+				const curState = this.relationship.following;
+				const apiUrl = curState ?
+					'/api/v1/accounts/' + this.profileId + '/unfollow' :
+					'/api/v1/accounts/' + this.profileId + '/follow';
+				axios.post(apiUrl)
+				.then(res => {
+					if(curState) {
 						this.profile.followers_count--;
-						if(this.profile.locked == true) {
-							window.location.href = '/';
+						if(this.profile.locked) {
+							location.reload();
 						}
 					} else {
 						this.profile.followers_count++;
 					}
-					this.relationship.following = !this.relationship.following;
+					this.relationship = res.data;
 				}).catch(err => {
 					if(err.response.data.message) {
 						swal('Error', err.response.data.message, 'error');
@@ -1105,22 +1080,34 @@
 				if(this.profileSettings.following.list == false) {
 					return;
 				}
-				if(this.followingCursor > 1) {
+				if(this.followingCursor) {
 					this.$refs.followingModal.show();
 					return;
 				} else {
-					axios.get('/api/pixelfed/v1/accounts/'+this.profileId+'/following', {
+					axios.get('/api/v1/accounts/'+this.profileId+'/following', {
 						params: {
-							page: this.followingCursor
+							cursor: this.followingCursor,
+							limit: 40,
+							'_pe': 1
 						}
 					})
 					.then(res => {
 						this.following = res.data;
-						this.followingModalSearchCache = res.data;
-						this.followingCursor++;
-						if(res.data.length < 10) {
+
+						if(res.headers && res.headers.link) {
+							const links = parseLinkHeader(res.headers.link);
+							if(links.prev) {
+								this.followingCursor = links.prev.cursor;
+								this.followingMore = true;
+							} else {
+								this.followingMore = false;
+							}
+						} else {
 							this.followingMore = false;
 						}
+					})
+					.then(() => {
+						setTimeout(() => { this.followingLoading = false }, 1000);
 					});
 					this.$refs.followingModal.show();
 					return;
@@ -1139,18 +1126,30 @@
 					this.$refs.followerModal.show();
 					return;
 				} else {
-					axios.get('/api/pixelfed/v1/accounts/'+this.profileId+'/followers', {
+					axios.get('/api/v1/accounts/'+this.profileId+'/followers', {
 						params: {
-							page: this.followerCursor
+							cursor: this.followerCursor,
+							limit: 40,
+							'_pe': 1
 						}
 					})
 					.then(res => {
 						this.followers.push(...res.data);
-						this.followerCursor++;
-						if(res.data.length < 10) {
+						if(res.headers && res.headers.link) {
+							const links = parseLinkHeader(res.headers.link);
+							if(links.prev) {
+								this.followerCursor = links.prev.cursor;
+								this.followerMore = true;
+							} else {
+								this.followerMore = false;
+							}
+						} else {
 							this.followerMore = false;
 						}
 					})
+					.then(() => {
+						setTimeout(() => { this.followerLoading = false }, 1000);
+					});
 					this.$refs.followerModal.show();
 					return;
 				}
@@ -1161,41 +1160,57 @@
 					window.location.href = encodeURI('/login?next=/' + this.profile.username + '/');
 					return;
 				}
-				axios.get('/api/pixelfed/v1/accounts/'+this.profile.id+'/following', {
+				axios.get('/api/v1/accounts/'+this.profile.id+'/following', {
 					params: {
-						page: this.followingCursor,
-						fbu: this.followingModalSearch
+						cursor: this.followingCursor,
+						limit: 40,
+						'_pe': 1
 					}
 				})
 				.then(res => {
 					if(res.data.length > 0) {
 						this.following.push(...res.data);
-						this.followingCursor++;
-						this.followingModalSearchCache = this.following;
 					}
-					if(res.data.length < 10) {
-						this.followingModalSearchCache = this.following;
+
+					if(res.headers && res.headers.link) {
+						const links = parseLinkHeader(res.headers.link);
+						if(links.prev) {
+							this.followingCursor = links.prev.cursor;
+							this.followingMore = true;
+						} else {
+							this.followingMore = false;
+						}
+					} else {
 						this.followingMore = false;
 					}
 				});
 			},
 
-
 			followersLoadMore() {
 				if($('body').hasClass('loggedIn') == false) {
 					return;
 				}
-				axios.get('/api/pixelfed/v1/accounts/'+this.profile.id+'/followers', {
+				axios.get('/api/v1/accounts/'+this.profile.id+'/followers', {
 					params: {
-						page: this.followerCursor
+						cursor: this.followerCursor,
+						limit: 40,
+						'_pe': 1
 					}
 				})
 				.then(res => {
 					if(res.data.length > 0) {
 						this.followers.push(...res.data);
-						this.followerCursor++;
 					}
-					if(res.data.length < 10) {
+
+					if(res.headers && res.headers.link) {
+						const links = parseLinkHeader(res.headers.link);
+						if(links.prev) {
+							this.followerCursor = links.prev.cursor;
+							this.followerMore = true;
+						} else {
+							this.followerMore = false;
+						}
+					} else {
 						this.followerMore = false;
 					}
 				});
@@ -1206,9 +1221,11 @@
 			},
 
 			followModalAction(id, index, type = 'following') {
-				axios.post('/i/follow', {
-					item: id
-				}).then(res => {
+				const apiUrl = type === 'following' ?
+					'/api/v1/accounts/' + id + '/unfollow' :
+					'/api/v1/accounts/' + id + '/follow';
+				axios.post(apiUrl)
+				.then(res => {
 					if(type == 'following') {
 						this.following.splice(index, 1);
 						this.profile.following_count--;
@@ -1280,6 +1297,14 @@
 				return '/i/web/profile/_/' + status.account.id;
 			},
 
+			profileUrlRedirect(profile) {
+				if(profile.local == true) {
+					return profile.url;
+				}
+
+				return '/i/web/profile/_/' + profile.id;
+			},
+
 			showEmbedProfileModal() {
 				this.ctxEmbedPayload = window.App.util.embed.profile(this.profile.url);
 				this.$refs.visitorContextMenu.hide();
@@ -1293,34 +1318,47 @@
 			},
 
 			storyRedirect() {
-				window.location.href = '/stories/' + this.profileUsername;
-			},
-
-			followingModalSearchHandler() {
-				let self = this;
-				let q = this.followingModalSearch;
-
-				if(q.length == 0) {
-					this.following = this.followingModalSearchCache;
-					this.followingModalSearch = null;
-				}
-				if(q.length > 0) {
-					let url = '/api/pixelfed/v1/accounts/' + 
-						self.profileId + '/following?page=1&fbu=' + 
-						q;
-
-					axios.get(url).then(res => {
-						this.following = res.data;
-					}).catch(err => {
-						self.following = self.followingModalSearchCache;
-						self.followingModalSearch = null;
-					});
-				}
+				window.location.href = '/stories/' + this.profileUsername + '?t=4';
 			},
 
 			truncate(str, len) {
 				return _.truncate(str, {
 					length: len
+				});
+			},
+
+			formatWebsite(site) {
+				if(site.slice(0, 8) === 'https://') {
+					site = site.substr(8);
+				} else if(site.slice(0, 7) === 'http://') {
+					site = site.substr(7);
+				} else {
+					this.profile.website = null;
+					return;
+				}
+
+				return this.truncate(site, 60);
+			},
+
+			joinedAtFormat(created) {
+				let d = new Date(created);
+				return d.toDateString();
+			},
+
+			archivesInfiniteLoader($state) {
+				axios.get('/api/pixelfed/v2/statuses/archives', {
+					params: {
+						page: this.archivesPage
+					}
+				}).then(res => {
+					if(res.data.length) {
+						this.archives.push(...res.data);
+						this.archivesPage++;
+						$state.loaded();
+					} else {
+						$state.complete();
+					}
+
 				});
 			}
 		}

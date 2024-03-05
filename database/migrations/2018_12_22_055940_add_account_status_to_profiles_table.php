@@ -16,10 +16,7 @@ class AddAccountStatusToProfilesTable extends Migration
         // Drop old columns, fix stories
         if(Schema::hasColumn('profiles', 'hub_url')) {
             Schema::table('profiles', function (Blueprint $table) {
-                $table->dropColumn('verify_token');
-                $table->dropColumn('secret');
-                $table->dropColumn('salmon_url');
-                $table->dropColumn('hub_url');
+                $table->dropColumn(['verify_token','secret','salmon_url','hub_url']);
             });
         }
 
@@ -57,12 +54,14 @@ class AddAccountStatusToProfilesTable extends Migration
             $table->string('hub_url')->nullable();
         });
 
-        Schema::table('stories', function (Blueprint $table) {
-            $table->dropColumn('id');
-        });
-        Schema::table('stories', function (Blueprint $table) {
-            $table->bigIncrements('bigIncrements')->first();
-        });
+        if (Schema::hasTable('stories')) {
+            Schema::table('stories', function (Blueprint $table) {
+                $table->dropColumn('id');
+            });
+            Schema::table('stories', function (Blueprint $table) {
+                $table->bigIncrements('bigIncrements')->first();
+            });
+        }
 
         Schema::table('profiles', function (Blueprint $table) {
             $table->dropColumn('status');

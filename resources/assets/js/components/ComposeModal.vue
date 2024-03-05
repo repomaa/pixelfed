@@ -1,6 +1,6 @@
 <template>
-<div>
-	<input type="file" id="pf-dz" name="media" class="w-100 h-100 d-none file-input" v-bind:accept="config.uploader.media_types">
+<div class="compose-modal-component">
+	<input type="file" id="pf-dz" name="media" class="w-100 h-100 d-none file-input" multiple="" v-bind:accept="config.uploader.media_types">
 	<canvas class="d-none" id="pr_canvas"></canvas>
 	<img class="d-none" id="pr_img">
 	<div class="timeline">
@@ -29,7 +29,7 @@
 						<div v-for="(m, index) in cameraRollMedia" :class="[index == 0 ? 'col-12 p-0' : 'col-3 p-0']">
 							<div class="card info-overlay p-0 rounded-0 shadow-none border">
 								<div class="square">
-									<img class="square-content" :src="m.preview_url"></img>
+									<img class="square-content" :src="m.preview_url" />
 								</div>
 							</div>
 						</div>
@@ -39,6 +39,97 @@
 							<button type="button" class="btn btn-primary">Upload</button>
 							<button type="button" class="btn btn-primary" @click="fetchCameraRollDrafts()">Load Camera Roll</button>
 						</span>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<div v-else-if="page == 'poll'">
+			<div class="card status-card card-md-rounded-0" style="display:flex;">
+				<div class="card-header d-inline-flex align-items-center justify-content-between bg-white">
+					<span class="pr-3">
+						<i class="fas fa-info-circle fa-lg text-primary"></i>
+					</span>
+					<span class="font-weight-bold">
+						New Poll
+					</span>
+					<span v-if="postingPoll">
+						<div class="spinner-border spinner-border-sm" role="status">
+							<span class="sr-only">Loading...</span>
+						</div>
+					</span>
+					<button v-else-if="!postingPoll && pollOptions.length > 1 && composeText.length" class="btn btn-primary btn-sm font-weight-bold" @click="postNewPoll">
+						<span>Create Poll</span>
+					</button>
+					<span v-else class="font-weight-bold text-lighter">
+						Create Poll
+					</span>
+				</div>
+				<div class="h-100 card-body p-0 border-top" style="width:100%; min-height: 400px;">
+					<div class="border-bottom mt-2">
+						<div class="media px-3">
+							<img :src="profile.avatar" width="42px" height="42px" class="rounded-circle">
+							<div class="media-body">
+								<div class="form-group">
+									<label class="font-weight-bold text-muted small d-none">Caption</label>
+									<vue-tribute :options="tributeSettings">
+										<textarea class="form-control border-0 rounded-0 no-focus" rows="3" placeholder="Write a poll question..." style="" v-model="composeText" v-on:keyup="composeTextLength = composeText.length"></textarea>
+									</vue-tribute>
+									<p class="help-text small text-right text-muted mb-0">{{composeTextLength}}/{{config.uploader.max_caption_length}}</p>
+								</div>
+							</div>
+						</div>
+					</div>
+
+					<div class="p-3">
+						<p class="font-weight-bold text-muted small">
+							Poll Options
+						</p>
+
+						<div v-if="pollOptions.length < 4" class="form-group mb-4">
+							<input type="text" class="form-control rounded-pill" placeholder="Add a poll option, press enter to save" v-model="pollOptionModel" @keyup.enter="savePollOption">
+						</div>
+
+						<div v-for="(option, index) in pollOptions" class="form-group mb-4 d-flex align-items-center" style="max-width:400px;position: relative;">
+							<span class="font-weight-bold mr-2" style="position: absolute;left: 10px;">{{ index + 1 }}.</span>
+							<input v-if="pollOptions[index].length < 50" type="text" class="form-control rounded-pill" placeholder="Add a poll option, press enter to save" v-model="pollOptions[index]" style="padding-left: 30px;padding-right: 90px;">
+							<textarea v-else class="form-control" v-model="pollOptions[index]" placeholder="Add a poll option, press enter to save" rows="3" style="padding-left: 30px;padding-right:90px;"></textarea>
+							<button class="btn btn-danger btn-sm rounded-pill font-weight-bold" style="position: absolute;right: 5px;" @click="deletePollOption(index)">
+								<i class="fas fa-trash"></i> Delete
+							</button>
+						</div>
+
+						<hr>
+
+						<div class="d-flex justify-content-between">
+							<div>
+								<p class="font-weight-bold text-muted small">
+									Poll Expiry
+								</p>
+
+								<div class="form-group">
+									<select class="form-control rounded-pill" style="width: 200px;" v-model="pollExpiry">
+										<option value="60">1 hour</option>
+										<option value="360">6 hours</option>
+										<option value="1440" selected>24 hours</option>
+										<option value="10080">7 days</option>
+									</select>
+								</div>
+							</div>
+
+							<div>
+								<p class="font-weight-bold text-muted small">
+									Poll Visibility
+								</p>
+
+								<div class="form-group">
+									<select class="form-control rounded-pill" style="max-width: 200px;" v-model="visibility">
+										<option value="public">Public</option>
+										<option value="private">Followers Only</option>
+									</select>
+								</div>
+							</div>
+						</div>
 					</div>
 				</div>
 			</div>
@@ -87,29 +178,37 @@
 						</span>
 						<span v-else>
 							<a v-if="!pageLoading && (page > 1 && page <= 2) || (page == 1 && ids.length != 0) || page == 'cropPhoto'" class="font-weight-bold text-decoration-none" href="#" @click.prevent="nextPage">Next</a>
-							<a v-if="!pageLoading && page == 3" class="font-weight-bold text-decoration-none" href="#" @click.prevent="compose()">Post</a>
+                            <template v-if="!pageLoading && page == 3" >
+                                <b-spinner v-if="isPosting" small />
+							    <a v-else class="font-weight-bold text-decoration-none" href="#" @click.prevent="compose()">Post</a>
+                            </template>
 							<a v-if="!pageLoading && page == 'addText'" class="font-weight-bold text-decoration-none" href="#" @click.prevent="composeTextPost()">Post</a>
+                            <a v-if="!pageLoading && page == 'video-2'" class="font-weight-bold text-decoration-none" href="#" @click.prevent="compose()">Post</a>
+							<span v-if="!pageLoading && page == 'filteringMedia'" class="font-weight-bold text-decoration-none text-muted">Next</span>
 						</span>
 					</div>
 				</div>
+
 				<div class="card-body p-0 border-top">
 					<div v-if="page == 'licensePicker'" class="w-100 h-100" style="min-height: 280px;">
 						<div class="list-group list-group-flush">
 							<div
 								v-for="(item, index) in availableLicenses"
-								class="list-group-item cursor-pointer" 
-								:class="{ 
-									'text-primary': licenseIndex === index,  
-									'font-weight-bold': licenseIndex === index
-								}" 
-								@click="toggleLicense(index)">
+								class="list-group-item cursor-pointer"
+								:class="{
+									'text-primary': licenseId === item.id,
+					'font-weight-bold': licenseId === item.id
+								}"
+								@click="toggleLicense(item)">
 								{{item.name}}
 							</div>
 						</div>
 					</div>
-					<div v-if="page == 'textOptions'" class="w-100 h-100" style="min-height: 280px;">
+
+					<div v-else-if="page == 'textOptions'" class="w-100 h-100" style="min-height: 280px;">
 					</div>
-					<div v-if="page == 'addText'" class="w-100 h-100" style="min-height: 280px;">
+
+					<div v-else-if="page == 'addText'" class="w-100 h-100" style="min-height: 280px;">
 						<div class="mt-2">
 							<div class="media px-3">
 								<div class="media-body">
@@ -141,30 +240,31 @@
 						</div>
 					</div>
 
-					<div v-if="page == 1" class="w-100 h-100 d-flex justify-content-center align-items-center" style="min-height: 400px;">
+					<div v-else-if="page == 1" class="w-100 h-100 d-flex justify-content-center align-items-center" style="min-height: 400px;">
 						<div class="text-center">
-							<div v-if="media.length == 0" class="card mx-md-5 my-md-3 shadow-none border compose-action text-decoration-none text-dark">
-								<div @click.prevent="addMedia" class="card-body">
+							<div v-if="media.length == 0" class="card my-md-3 shadow-none border compose-action text-decoration-none text-dark">
+								<div @click.prevent="addMedia" class="card-body py-2">
 									<div class="media">
 										<div class="mr-3 align-items-center justify-content-center" style="display:inline-flex;width:40px;height:40px;border-radius: 100%;background-color: #008DF5">
-											<i class="fas fa-bolt text-white fa-lg"></i>
-										</div>	
+											<i class="fal fa-bolt text-white fa-lg"></i>
+										</div>
 										<div class="media-body text-left">
 											<p class="mb-0">
-												<span class="h5 mt-0 font-weight-bold text-primary">New Post</span> 
+												<span class="h5 mt-0 font-weight-bold text-primary">New Post</span>
 											</p>
 											<p class="mb-0 text-muted">Share up to {{config.uploader.album_limit}} photos or videos</p>
+											<p class="mb-0 text-muted small"><span class="font-weight-bold">{{config.uploader.media_types.split(',').map(v => v.split('/')[1]).join(', ')}}</span> allowed up to <span class="font-weight-bold">{{filesize(config.uploader.max_photo_size)}}</span></p>
 										</div>
 									</div>
 								</div>
 							</div>
 
-							<div v-if="config.ab.top == true && media.length == 0" class="card mx-md-5 my-md-3 shadow-none border compose-action text-decoration-none text-dark">
-								<div @click.prevent="addText" class="card-body">
+							<div v-if="1==0 && config.ab.top == true && media.length == 0" class="card my-md-3 shadow-none border compose-action text-decoration-none text-dark">
+								<div @click.prevent="addText" class="card-body py-2">
 									<div class="media">
 										<div class="mr-3 align-items-center justify-content-center" style="display:inline-flex;width:40px;height:40px;border-radius: 100%;border: 2px solid #008DF5">
 											<i class="far fa-edit text-primary fa-lg"></i>
-										</div>	
+										</div>
 										<div class="media-body text-left">
 											<p class="mb-0">
 												<span class="h5 mt-0 font-weight-bold text-primary">New Text Post</span>
@@ -178,34 +278,53 @@
 								</div>
 							</div>
 
-							<a v-if="config.features.stories == true" class="card mx-md-5 my-md-3 shadow-none border compose-action text-decoration-none text-dark" href="/i/stories/new">
-								<div class="card-body">
+							<a v-if="config.features.stories == true" class="card my-md-3 shadow-none border compose-action text-decoration-none text-dark" href="/i/stories/new">
+								<div class="card-body py-2">
 									<div class="media">
-										<div class="mr-3 align-items-center justify-content-center" style="display:inline-flex;width:40px;height:40px;border-radius: 100%;border: 2px solid #008DF5">
+										<div class="mr-3 align-items-center justify-content-center" style="display:inline-flex;width:40px;height:40px;border-radius: 100%;border: 1px solid #008DF5">
 											<i class="fas fa-history text-primary fa-lg"></i>
-										</div>	
+										</div>
 										<div class="media-body text-left">
 											<p class="mb-0">
-												<span class="h5 mt-0 font-weight-bold text-primary">New Story</span> 
+												<span class="h5 mt-0 font-weight-bold text-primary">New Story</span>
 												<sup class="float-right mt-2">
 													<span class="btn btn-outline-lighter p-1 btn-sm font-weight-bold py-0" style="font-size:10px;line-height: 0.6">BETA</span>
 												</sup>
 											</p>
-											<p class="mb-0 text-muted">Add Photo to Story</p>
+											<p class="mb-0 text-muted">Add to your story</p>
 										</div>
 									</div>
 								</div>
 							</a>
 
-							<a class="card mx-md-5 my-md-3 shadow-none border compose-action text-decoration-none text-dark" href="/i/collections/create">
-								<div class="card-body">
+							<a v-if="1==0 && config.ab.polls == true" class="card my-md-3 shadow-none border compose-action text-decoration-none text-dark" href="#" @click.prevent="newPoll">
+								<div class="card-body py-2">
 									<div class="media">
 										<div class="mr-3 align-items-center justify-content-center" style="display:inline-flex;width:40px;height:40px;border-radius: 100%;border: 2px solid #008DF5">
-											<i class="fas fa-images text-primary fa-lg"></i>
-										</div>	
+											<i class="fas fa-poll-h text-primary fa-lg"></i>
+										</div>
 										<div class="media-body text-left">
 											<p class="mb-0">
-												<span class="h5 mt-0 font-weight-bold text-primary">New Collection</span> 
+												<span class="h5 mt-0 font-weight-bold text-primary">New Poll</span>
+												<sup class="float-right mt-2">
+													<span class="btn btn-outline-lighter p-1 btn-sm font-weight-bold py-0" style="font-size:10px;line-height: 0.6">BETA</span>
+												</sup>
+											</p>
+											<p class="mb-0 text-muted">Create a poll</p>
+										</div>
+									</div>
+								</div>
+							</a>
+
+							<a class="card my-md-3 shadow-none border compose-action text-decoration-none text-dark" href="/i/collections/create">
+								<div class="card-body py-2">
+									<div class="media">
+										<div class="mr-3 align-items-center justify-content-center" style="display:inline-flex;width:40px;height:40px;border-radius: 100%;border: 1px solid #008DF5">
+											<i class="fal fa-images text-primary fa-lg"></i>
+										</div>
+										<div class="media-body text-left">
+											<p class="mb-0">
+												<span class="h5 mt-0 font-weight-bold text-primary">New Collection</span>
 												<sup class="float-right mt-2">
 													<span class="btn btn-outline-lighter p-1 btn-sm font-weight-bold py-0" style="font-size:10px;line-height: 0.6">BETA</span>
 												</sup>
@@ -216,14 +335,13 @@
 								</div>
 							</a>
 
-							
 							<p class="py-3">
 								<a class="font-weight-bold" href="/site/help">Help</a>
 							</p>
 						</div>
 					</div>
 
-					<div v-if="page == 'cropPhoto'" class="w-100 h-100">
+					<div v-else-if="page == 'cropPhoto'" class="w-100 h-100">
 						<div v-if="ids.length > 0">
 							<vue-cropper
 								ref="cropper"
@@ -238,13 +356,13 @@
 						</div>
 					</div>
 
-					<div v-if="page == 2" class="w-100 h-100">
+					<div v-else-if="page == 2" class="w-100 h-100">
 						<div v-if="media.length == 1">
 							<div slot="img" style="display:flex;min-height: 420px;align-items: center;">
 								<img :class="'d-block img-fluid w-100 ' + [media[carouselCursor].filter_class?media[carouselCursor].filter_class:'']" :src="media[carouselCursor].url" :alt="media[carouselCursor].description" :title="media[carouselCursor].description">
 							</div>
 							<hr>
-							<div v-if="ids.length > 0 && media[carouselCursor].type == 'Image'" class="align-items-center px-2 pt-2">
+							<div v-if="ids.length > 0 && media[carouselCursor].type == 'image'" class="align-items-center px-2 pt-2">
 								<ul class="nav media-drawer-filters text-center">
 									<li class="nav-item">
 										<div class="p-1 pt-3">
@@ -254,7 +372,9 @@
 									</li>
 									<li class="nav-item" v-for="(filter, index) in filters">
 										<div class="p-1 pt-3">
-											<img :src="media[carouselCursor].url" width="100px" height="60px" :class="filter[1]" v-on:click.prevent="toggleFilter($event, filter[1])">
+                                            <div class="rounded" :class="filter[1]">
+											 <img :src="media[carouselCursor].url" width="100px" height="60px" v-on:click.prevent="toggleFilter($event, filter[1])">
+                                            </div>
 										</div>
 										<a :class="[media[carouselCursor].filter_class == filter[1] ? 'nav-link text-primary active' : 'nav-link text-muted']" href="#" v-on:click.prevent="toggleFilter($event, filter[1])">{{filter[0]}}</a>
 									</li>
@@ -262,26 +382,27 @@
 							</div>
 						</div>
 						<div v-else-if="media.length > 1" class="d-flex-inline px-2 pt-2">
-							<ul class="nav media-drawer-filters text-center">
+							<ul class="nav media-drawer-filters text-center pb-3">
 								<li class="nav-item mx-md-4">&nbsp;</li>
-								<li v-for="(m, i) in media" class="nav-item mx-md-4">
+								<li v-for="(m, i) in media" :key="m.id + ':' + carouselCursor" class="nav-item mx-md-4">
 										<div class="nav-link" style="display:block;width:300px;height:300px;" @click="carouselCursor = i">
 											<!-- <img :class="'d-block img-fluid w-100 ' + [m.filter_class?m.filter_class:'']" :src="m.url" :alt="m.description" :title="m.description"> -->
-											<span :class="[m.filter_class?m.filter_class:'']">
-												
-												<span :class="'rounded border ' +  [i == carouselCursor ? ' border-primary shadow':'']" :style="'display:block;padding:5px;width:100%;height:100%;background-image: url(' + m.url + ');background-size:cover;border-width:3px !important;'"></span>
-											</span>
+											<div :class="[m.filter_class?m.filter_class:'']" style="width:100%;height:100%;display:block;">
+												<div :class="'rounded ' +  [i == carouselCursor ? ' border border-primary shadow':'']" :style="'display:block;width:100%;height:100%;background-image: url(' + m.url + ');background-size:cover;'"></div>
+											</div>
 										</div>
 										<div v-if="i == carouselCursor" class="text-center mb-0 small text-lighter font-weight-bold pt-2">
+                                            <button class="btn btn-link" @click="mediaReorder('prev')"><i class="far fa-chevron-circle-left"></i></button>
 											<span class="cursor-pointer" @click.prevent="showCropPhotoCard">Crop</span>
 											<span class="cursor-pointer px-3" @click.prevent="showEditMediaCard()">Edit</span>
 											<span class="cursor-pointer" @click="deleteMedia()">Delete</span>
+                                            <button class="btn btn-link" @click="mediaReorder('next')"><i class="far fa-chevron-circle-right"></i></button>
 										</div>
 								</li>
 								<li class="nav-item mx-md-4">&nbsp;</li>
 							</ul>
 							<hr>
-							<div v-if="ids.length > 0 && media[carouselCursor].type == 'Image'" class="align-items-center px-2 pt-2">
+							<div v-if="ids.length > 0 && media[carouselCursor].type == 'image'" class="align-items-center px-2 pt-2">
 								<ul class="nav media-drawer-filters text-center">
 									<li class="nav-item">
 										<div class="p-1 pt-3">
@@ -303,7 +424,7 @@
 						</div>
 					</div>
 
-					<div v-if="page == 3" class="w-100 h-100">
+					<div v-else-if="page == 3" class="w-100 h-100">
 						<div class="border-bottom mt-2">
 							<div class="media px-3">
 								<img :src="media[0].url" width="42px" height="42px" :class="[media[0].filter_class?'mr-2 ' + media[0].filter_class:'mr-2']">
@@ -318,22 +439,61 @@
 								</div>
 							</div>
 						</div>
-						<div class="border-bottom d-flex justify-content-between px-4 mb-0 py-2 ">
-							<div>
-								<div class="text-dark ">Contains NSFW Media</div>
-							</div>
-							<div>
-								<div class="custom-control custom-switch" style="z-index: 9999;">
-									<input type="checkbox" class="custom-control-input" id="asnsfw" v-model="nsfw">
-									<label class="custom-control-label" for="asnsfw"></label>
+						<div class="border-bottom">
+							<p class="px-4 mb-0 py-2 cursor-pointer d-flex justify-content-between" @click="showMediaDescriptionsCard()">
+								<span>Alt Text</span>
+								<span>
+									<i v-if="media && media.filter(m => m.alt).length == media.length" class="fas fa-check-circle fa-lg text-success"></i>
+									<i v-else class="fas fa-chevron-right fa-lg text-lighter"></i>
+								</span>
+							</p>
+						</div>
+						<div class="border-bottom px-4 mb-0 py-2">
+							<div class="d-flex justify-content-between">
+								<div>
+									<div class="text-dark ">Sensitive/NSFW Media</div>
 								</div>
+								<div>
+									<div class="custom-control custom-switch" style="z-index: 9999;">
+										<input type="checkbox" class="custom-control-input" id="asnsfw" v-model="nsfw">
+										<label class="custom-control-label" for="asnsfw"></label>
+									</div>
+								</div>
+							</div>
+
+							<div v-if="nsfw">
+								<textarea
+									class="form-control mt-3"
+									placeholder="Add an optional content warning or spoiler text"
+									maxlength="140"
+									v-model="spoilerText">
+								</textarea>
+
+								<p class="help-text small text-right text-muted mb-0">{{ spoilerTextLength }}/140</p>
 							</div>
 						</div>
 						<div class="border-bottom">
 							<p class="px-4 mb-0 py-2 cursor-pointer" @click="showTagCard()">Tag people</p>
 						</div>
 						<div class="border-bottom">
-							<p class="px-4 mb-0 py-2 cursor-pointer" @click="showLicenseCard()">Add license <span class="ml-2 badge badge-primary">NEW</span></p>
+							<p class="px-4 mb-0 py-2 cursor-pointer" @click="showCollectionCard()">
+								<span>Add to Collection <span class="ml-2 badge badge-primary">NEW</span></span>
+								<span class="float-right">
+									<span v-if="collectionsSelected.length" href="#" class="btn btn-outline-secondary btn-sm small mr-3 mt-n1 disabled" style="font-size:10px;padding:3px 5px;text-transform: uppercase" disabled>
+										{{collectionsSelected.length}}
+									</span>
+									<span class="text-decoration-none"><i class="fas fa-chevron-right fa-lg text-lighter"></i></span>
+								</span>
+							</p>
+						</div>
+						<div class="border-bottom">
+							<p class="px-4 mb-0 py-2 cursor-pointer" @click="showLicenseCard()">
+								<span>Add license</span>
+								<span class="float-right">
+									<a v-if="licenseTitle" href="#" @click.prevent="showLicenseCard()" class="btn btn-outline-secondary btn-sm small mr-3 mt-n1 disabled" style="font-size:10px;padding:3px;text-transform: uppercase" disabled>{{licenseTitle}}</a>
+									<a href="#" @click.prevent="showLicenseCard()" class="text-decoration-none"><i class="fas fa-chevron-right fa-lg text-lighter"></i></a>
+								</span>
+							</p>
 						</div>
 						<div class="border-bottom">
 							<p class="px-4 mb-0 py-2 cursor-pointer" @click="showLocationCard()" v-if="!place">Add location</p>
@@ -371,8 +531,8 @@
 						</div>
 					</div>
 
-					<div v-if="page == 'tagPeople'" class="w-100 h-100 p-3">
-						<autocomplete 
+					<div v-else-if="page == 'tagPeople'" class="w-100 h-100 p-3">
+						<autocomplete
 							v-show="taggedUsernames.length < 10"
 							:search="tagSearch"
 							placeholder="@pixelfed"
@@ -404,16 +564,16 @@
 						<p class="font-weight-bold text-center small text-muted pt-3 mb-0">When you tag someone, they are sent a notification.<br>For more information on tagging, <a href="#" class="text-primary" @click.prevent="showTagHelpCard()">click here</a>.</p>
 					</div>
 
-					<div v-if="page == 'tagPeopleHelp'" class="w-100 h-100 p-3">
+					<div v-else-if="page == 'tagPeopleHelp'" class="w-100 h-100 p-3">
 						<p class="mb-0 text-center py-3 px-2 lead">Tagging someone is like mentioning them, with the option to make it private between you.</p>
 						<p class="mb-3 py-3 px-2 font-weight-lighter">
 							You can choose to tag someone in public or private mode. Public mode will allow others to see who you tagged in the post and private mode tagged users will not be shown to others.
 						</p>
 					</div>
 
-					<div v-if="page == 'addLocation'" class="w-100 h-100 p-3">
+					<div v-else-if="page == 'addLocation'" class="w-100 h-100 p-3">
 						<p class="mb-0">Add Location</p>
-						<autocomplete 
+						<autocomplete
 							:search="locationSearch"
 							placeholder="Search locations ..."
 							aria-label="Search locations ..."
@@ -423,7 +583,7 @@
 						</autocomplete>
 					</div>
 
-					<div v-if="page == 'advancedSettings'" class="w-100 h-100">
+					<div v-else-if="page == 'advancedSettings'" class="w-100 h-100">
 						<div class="list-group list-group-flush">
 							<!-- <div class="d-none list-group-item d-flex justify-content-between">
 								<div>
@@ -497,38 +657,38 @@
 						</div>
 					</div>
 
-					<div v-if="page == 'visibility'" class="w-100 h-100">
+					<div v-else-if="page == 'visibility'" class="w-100 h-100">
 						<div class="list-group list-group-flush">
 							<div
 								v-if="!profile.locked"
-								class="list-group-item lead cursor-pointer" 
-								:class="{ 'text-primary': visibility == 'public' }" 
+								class="list-group-item lead cursor-pointer"
+								:class="{ 'text-primary': visibility == 'public' }"
 								@click="toggleVisibility('public')">
 								Public
 							</div>
 							<div
 								v-if="!profile.locked"
-								class="list-group-item lead cursor-pointer" 
-								:class="{ 'text-primary': visibility == 'unlisted' }" 
+								class="list-group-item lead cursor-pointer"
+								:class="{ 'text-primary': visibility == 'unlisted' }"
 								@click="toggleVisibility('unlisted')">
 								Unlisted
 							</div>
-							<div 
-								class="list-group-item lead cursor-pointer" 
-								:class="{ 'text-primary': visibility == 'private' }"  
+							<div
+								class="list-group-item lead cursor-pointer"
+								:class="{ 'text-primary': visibility == 'private' }"
 								@click="toggleVisibility('private')">
 								Followers Only
 							</div>
 						</div>
 					</div>
 
-					<div v-if="page == 'altText'" class="w-100 h-100 p-3">
+					<div v-else-if="page == 'altText'" class="w-100 h-100 p-3">
 						<div v-for="(m, index) in media">
 							<div class="media">
 								<img :src="m.preview_url" class="mr-3" width="50px" height="50px">
 								<div class="media-body">
-									<textarea class="form-control" v-model="m.alt" placeholder="Add a media description here..." maxlength="140"></textarea>
-									<p class="help-text small text-right text-muted mb-0">{{m.alt ? m.alt.length : 0}}/140</p>
+									<textarea class="form-control" v-model="m.alt" placeholder="Add a media description here..." :maxlength="maxAltTextLength" rows="4"></textarea>
+									<p class="help-text small text-right text-muted mb-0">{{m.alt ? m.alt.length : 0}}/{{maxAltTextLength}}</p>
 								</div>
 							</div>
 							<hr>
@@ -539,37 +699,48 @@
 						</p>
 					</div>
 
-					<div v-if="page == 'addToCollection'" class="w-100 h-100 p-3">
-						<div class="list-group mb-3">
-							<div class="list-group-item cursor-pointer compose-action border" @click="goBack()">
+					<div v-else-if="page == 'addToCollection'" class="w-100 h-100 p-3">
+						<div v-if="collectionsLoaded && collections.length" class="list-group mb-3 collections-list-group">
+							<div
+								v-for="(collection, index) in collections"
+								class="list-group-item cursor-pointer compose-action border"
+								:class="{ active: collectionsSelected.includes(index) }"
+								@click="toggleCollectionItem(index)">
 								<div class="media">
-								  <img src="" class="mr-3" alt="" width="50px" height="50px">
+								  <img :src="collection.thumb" class="mr-3" alt="" width="50px" height="50px">
 								  <div class="media-body">
-								    <h5 class="mt-0">collection title</h5>
-								    <p class="mb-0 text-muted small">3 Photos - Created 2h ago</p>
+								    <h5 class="mt-0">{{ collection.title }}</h5>
+								    <p class="mb-0 text-muted small">{{ collection.post_count }} Posts - Created {{ timeAgo(collection.published_at) }} ago</p>
 								  </div>
 								</div>
 							</div>
+
+							<button
+								v-if="collectionsCanLoadMore"
+								class="btn btn-light btn-block font-weight-bold mt-3"
+								@click="loadMoreCollections">
+								Load more
+							</button>
 						</div>
 						<p class="d-flex justify-content-between mb-0">
-							<button type="button" @click="goBack()" class="btn btn-link text-muted font-weight-bold text-decoration-none">Cancel</button>
+							<button type="button" @click="clearSelectedCollections()" class="btn btn-link text-muted font-weight-bold text-decoration-none">Clear</button>
 							<button type="button" @click="goBack()" class="btn btn-primary font-weight-bold">Save</button>
 						</p>
 					</div>
 
-					<div v-if="page == 'schedulePost'" class="w-100 h-100 p-3">
+					<div v-else-if="page == 'schedulePost'" class="w-100 h-100 p-3">
 						<p class="text-center lead text-muted mb-0 py-5">This feature is not available yet.</p>
 					</div>
 
-					<div v-if="page == 'mediaMetadata'" class="w-100 h-100 p-3">
+					<div v-else-if="page == 'mediaMetadata'" class="w-100 h-100 p-3">
 						<p class="text-center lead text-muted mb-0 py-5">This feature is not available yet.</p>
 					</div>
 
-					<div v-if="page == 'addToStory'" class="w-100 h-100 p-3">
+					<div v-else-if="page == 'addToStory'" class="w-100 h-100 p-3">
 						<p class="text-center lead text-muted mb-0 py-5">This feature is not available yet.</p>
 					</div>
 
-					<div v-if="page == 'editMedia'" class="w-100 h-100 p-3">
+					<div v-else-if="page == 'editMedia'" class="w-100 h-100 p-3">
 						<div class="media">
 							<img :src="media[carouselCursor].preview_url" class="mr-3" width="50px" height="50px">
 							<div class="media-body">
@@ -588,11 +759,11 @@
 										<span></span>
 										<span>{{media[carouselCursor].license ? media[carouselCursor].license.length : 0}}/140</span>
 									</p> -->
-									<select class="form-control" v-model="licenseIndex">
-										<option 
+									<select class="form-control" v-model="licenseId">
+										<option
 											v-for="(item, index) in availableLicenses"
-											:value="index"
-											:selected="index === licenseIndex">
+											:value="item.id"
+											:selected="item.id == licenseId">
 											{{item.name}}
 										</option>
 									</select>
@@ -606,6 +777,75 @@
 						</p>
 					</div>
 
+					<div v-else-if="page == 'video-2'" class="w-100 h-100">
+						<div v-if="video.title.length" class="border-bottom">
+							<div class="media p-3">
+								<img :src="media[0].url" width="100px" height="70px" :class="[media[0].filter_class?'mr-2 ' + media[0].filter_class:'mr-2']">
+								<div class="media-body">
+									<p class="font-weight-bold mb-1">{{video.title ? video.title.slice(0,70) : 'Untitled'}}</p>
+									<p class="mb-0 text-muted small">{{video.description ? video.description.slice(0,90) : 'No description'}}</p>
+								</div>
+							</div>
+						</div>
+
+
+						<div class="border-bottom d-flex justify-content-between px-4 mb-0 py-2 ">
+							<div>
+								<div class="text-dark ">Contains NSFW Media</div>
+							</div>
+							<div>
+								<div class="custom-control custom-switch" style="z-index: 9999;">
+									<input type="checkbox" class="custom-control-input" id="asnsfw" v-model="nsfw">
+									<label class="custom-control-label" for="asnsfw"></label>
+								</div>
+							</div>
+						</div>
+						<div class="border-bottom">
+							<p class="px-4 mb-0 py-2 cursor-pointer" @click="showLicenseCard()">Add license</p>
+						</div>
+						<div class="border-bottom">
+							<p class="px-4 mb-0 py-2">
+								<span>Audience</span>
+								<span class="float-right">
+									<a href="#" @click.prevent="showVisibilityCard()" class="btn btn-outline-secondary btn-sm small mr-3 mt-n1 disabled" style="font-size:10px;padding:3px;text-transform: uppercase" disabled>{{visibilityTag}}</a>
+									<a href="#" @click.prevent="showVisibilityCard()" class="text-decoration-none"><i class="fas fa-chevron-right fa-lg text-lighter"></i></a>
+								</span>
+							</p>
+						</div>
+
+						<div class="p-3">
+							<!-- <div class="card card-body shadow-none border d-flex justify-content-center align-items-center mb-3 p-5">
+								<div class="d-flex align-items-center">
+									<p class="mb-0 text-center">
+										<div class="spinner-border text-primary" role="status">
+											<span class="sr-only">Loading...</span>
+										</div>
+									</p>
+									<p class="ml-3 mb-0 text-center font-weight-bold">
+										Processing video
+									</p>
+								</div>
+							</div> -->
+							<div class="form-group">
+								<p class="small font-weight-bold text-muted mb-0">Title</p>
+								<input class="form-control" v-model="video.title" placeholder="Add a good title">
+								<p class="help-text mb-0 small text-muted">{{video.title.length}}/70</p>
+							</div>
+
+							<div class="form-group mb-0">
+								<p class="small font-weight-bold text-muted mb-0">Description</p>
+								<textarea class="form-control" v-model="video.description" placeholder="Add an optional description" maxlength="5000" rows="5"></textarea>
+								<p class="help-text mb-0 small text-muted">{{video.description.length}}/5000</p>
+							</div>
+						</div>
+					</div>
+
+                    <div v-else-if="page == 'filteringMedia'" class="w-100 h-100 py-5">
+                        <div class="d-flex flex-column align-items-center justify-content-center py-5">
+                            <b-spinner small />
+                            <p class="font-weight-bold mt-3">Applying filters...</p>
+                        </div>
+                    </div>
 				</div>
 
 				<!-- card-footers -->
@@ -629,47 +869,6 @@
 </div>
 </template>
 
-<style type="text/css" scoped>
-	.media-drawer-filters {
-		overflow-x: scroll;
-		flex-wrap:unset;
-	}
-	.media-drawer-filters::-webkit-scrollbar {
-		width: 0px;
-		background: transparent;
-	}
-	.media-drawer-filters .nav-link {
-		min-width:100px;
-		padding-top: 1rem;
-		padding-bottom: 1rem;
-	}
-	.media-drawer-filters .active {
-		color: #fff;
-		font-weight: bold;
-	}
-    @media (hover: none) and (pointer: coarse) {
-	    .media-drawer-filters::-webkit-scrollbar {
-	        display: none;
-	    }
-    }
-    .no-focus {
-		border-color: none;
-		outline: 0;
-		box-shadow: none;
-    }
-	a.list-group-item {
-		text-decoration: none;
-	}
-	a.list-group-item:hover {
-		text-decoration: none;
-		background-color: #f8f9fa !important;
-	}
-	.compose-action:hover {
-		cursor: pointer;
-		background-color: #f8f9fa !important;
-	}
-</style>
-
 <script type="text/javascript">
 import VueCropper from 'vue-cropperjs';
 import 'cropperjs/dist/cropper.css';
@@ -679,7 +878,7 @@ import VueTribute from 'vue-tribute'
 
 export default {
 
-	components: { 
+	components: {
 		VueCropper,
 		Autocomplete,
 		VueTribute
@@ -700,12 +899,16 @@ export default {
 			carouselCursor: 0,
 			uploading: false,
 			uploadProgress: 100,
-			composeType: false,
+			mode: 'photo',
+			modes: [
+				'photo',
+				'video',
+				'plain'
+			],
 			page: 1,
 			composeState: 'publish',
 			visibility: 'public',
 			visibilityTag: 'Public',
-			nsfw: false,
 			place: false,
 			commentsDisabled: false,
 			optimizeMedia: true,
@@ -720,6 +923,7 @@ export default {
 			},
 
 			namedPages: [
+                'filteringMedia',
 				'cropPhoto',
 				'tagPeople',
 				'addLocation',
@@ -741,6 +945,7 @@ export default {
 			taggedPeopleSearch: null,
 			textMode: false,
 			tributeSettings: {
+				noMatchTemplate: function () { return null; },
 				collection: [
 					{
 						trigger: '@',
@@ -752,7 +957,6 @@ export default {
 								cb(res.data);
 							})
 							.catch(err => {
-								console.log(err);
 							})
 						})
 					},
@@ -766,7 +970,6 @@ export default {
 								cb(res.data);
 							})
 							.catch(err => {
-								console.log(err);
 							})
 						})
 					}
@@ -775,51 +978,101 @@ export default {
 			availableLicenses: [
 				{
 					id: 1,
-					name: "All Rights Reserved"
+					name: "All Rights Reserved",
+					title: ""
 				},
 				{
 					id: 5,
-					name: "Public Domain Work"
+					name: "Public Domain Work",
+					title: ""
 				},
 				{
 					id: 6,
-					name: "Public Domain Dedication (CC0)"
+					name: "Public Domain Dedication (CC0)",
+					title: "CC0"
 				},
 				{
 					id: 11,
-					name: "Attribution"
+					name: "Attribution",
+					title: "CC BY"
 				},
 				{
 					id: 12,
-					name: "Attribution-ShareAlike"
+					name: "Attribution-ShareAlike",
+					title: "CC BY-SA"
 				},
 				{
 					id: 13,
-					name: "Attribution-NonCommercial"
+					name: "Attribution-NonCommercial",
+					title: "CC BY-NC"
 				},
 				{
 					id: 14,
-					name: "Attribution-NonCommercial-ShareAlike"
+					name: "Attribution-NonCommercial-ShareAlike",
+					title: "CC BY-NC-SA"
 				},
 				{
 					id: 15,
-					name: "Attribution-NoDerivs"
+					name: "Attribution-NoDerivs",
+					title: "CC BY-ND"
 				},
 				{
 					id: 16,
-					name: "Attribution-NonCommercial-NoDerivs"
+					name: "Attribution-NonCommercial-NoDerivs",
+					title: "CC BY-NC-ND"
 				}
 			],
-			licenseIndex: 0
+			licenseIndex: 0,
+			video: {
+				title: '',
+				description: ''
+			},
+			composeSettings: {
+				default_license: null,
+				media_descriptions: false
+			},
+			licenseId: 1,
+			licenseTitle: null,
+			maxAltTextLength: 140,
+			pollOptionModel: null,
+			pollOptions: [],
+			pollExpiry: 1440,
+			postingPoll: false,
+			collections: [],
+			collectionsSelected: [],
+			collectionsLoaded: false,
+			collectionsPage: 1,
+			collectionsCanLoadMore: false,
+			spoilerText: undefined,
+            isFilteringMedia: false,
+            filteringMediaTimeout: undefined,
+            filteringRemainingCount: 0,
+            isPosting: false,
+		}
+	},
+
+	computed: {
+		spoilerTextLength: function() {
+			return this.spoilerText ? this.spoilerText.length : 0;
 		}
 	},
 
 	beforeMount() {
-		this.fetchProfile();
-		if(this.config.uploader.media_types.includes('video/mp4') == false) {
-			this.composeType = 'post'
-		}
-		this.filters = window.App.util.filters;
+		this.filters = window.App.util.filters.sort();
+		axios.get('/api/compose/v0/settings')
+		.then(res => {
+			this.composeSettings = res.data;
+			this.licenseId = this.composeSettings.default_license;
+			this.maxAltTextLength = res.data.max_altext_length;
+			if(this.licenseId > 10) {
+				this.licenseTitle = this.availableLicenses.filter(l => {
+					return l.id == this.licenseId;
+				}).map(l => {
+					return l.title;
+				})[0];
+			}
+			this.fetchProfile();
+		});
 	},
 
 	mounted() {
@@ -827,9 +1080,33 @@ export default {
 	},
 
 	methods: {
+		timeAgo(ts) {
+			return App.util.format.timeAgo(ts);
+		},
+
+		formatBytes(bytes, decimals = 2) {
+			if (!+bytes) {
+				return '0 Bytes'
+			}
+			const dec = decimals < 0 ? 0 : decimals
+			const units = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+			const quotient = Math.floor(Math.log(bytes) / Math.log(1024))
+			return `${parseFloat((bytes / Math.pow(1024, quotient)).toFixed(dec))} ${units[quotient]}`
+		},
+
 		fetchProfile() {
+			let tags = {
+				public: 'Public',
+				private: 'Followers Only',
+				unlisted: 'Unlisted'
+			}
 			if(window._sharedData.curUser.id) {
 				this.profile = window._sharedData.curUser;
+				if(this.composeSettings && this.composeSettings.hasOwnProperty('default_scope') && this.composeSettings.default_scope) {
+					let ds = this.composeSettings.default_scope;
+					this.visibility = ds;
+					this.visibilityTag = tags[ds];
+				}
 				if(this.profile.locked == true) {
 					this.visibility = 'private';
 					this.visibilityTag = 'Followers Only';
@@ -838,6 +1115,11 @@ export default {
 				axios.get('/api/pixelfed/v1/accounts/verify_credentials').then(res => {
 					window._sharedData.currentUser = res.data;
 					this.profile = res.data;
+					if(this.composeSettings && this.composeSettings.hasOwnProperty('default_scope') && this.composeSettings.default_scope) {
+						let ds = this.composeSettings.default_scope;
+						this.visibility = ds;
+						this.visibilityTag = tags[ds];
+					}
 					if(this.profile.locked == true) {
 						this.visibility = 'private';
 						this.visibilityTag = 'Followers Only';
@@ -860,6 +1142,7 @@ export default {
 			this.pageTitle = 'New Text Post';
 			this.page = 'addText';
 			this.textMode = true;
+			this.mode = 'text';
 		},
 
 		mediaWatcher() {
@@ -910,10 +1193,31 @@ export default {
 					self.media.push(e.data);
 					self.uploading = false;
 					setTimeout(function() {
-						self.page = 2;
+						// if(type === 'video/mp4') {
+						// 	self.pageTitle = 'Edit Video Details';
+						// 	self.mode = 'video';
+						// 	self.page = 'video-2';
+						// } else {
+						// 	self.page = 2;
+						// }
+						self.page = 3;
 					}, 300);
 				}).catch(function(e) {
 					switch(e.response.status) {
+						case 403:
+							self.uploading = false;
+							io.value = null;
+							swal('Account size limit reached', 'Contact your admin for assistance.', 'error');
+							self.page = 2;
+						break;
+
+						case 413:
+							self.uploading = false;
+							io.value = null;
+							swal('File is too large', 'The file you uploaded has the size of ' + self.formatBytes(io.size) + '. Unfortunately, only images up to ' + self.formatBytes(self.config.uploader.max_photo_size  * 1024) + ' are supported.\nPlease resize the file and try again.', 'error');
+							self.page = 2;
+						break;
+
 						case 451:
 							self.uploading = false;
 							io.value = null;
@@ -925,6 +1229,13 @@ export default {
 							self.uploading = false;
 							io.value = null;
 							swal('Limit Reached', 'You can upload up to 250 photos or videos per day and you\'ve reached that limit. Please try again later.', 'error');
+							self.page = 2;
+						break;
+
+						case 500:
+							self.uploading = false;
+							io.value = null;
+							swal('Error', e.response.data.message, 'error');
 							self.page = 2;
 						break;
 
@@ -951,7 +1262,7 @@ export default {
 				return;
 			}
 			let id = this.media[this.carouselCursor].id;
-			
+
 			axios.delete('/api/compose/v0/media/delete', {
 				params: {
 					id: id
@@ -971,6 +1282,50 @@ export default {
 			});
 		},
 
+        mediaReorder(dir) {
+            const m = this.media;
+            const cur = this.carouselCursor;
+            const pla = m[cur];
+            let res = [];
+            let cursor = 0;
+
+            if(dir == 'prev') {
+                if(cur == 0) {
+                    for (let i = cursor; i < m.length - 1; i++) {
+                        res[i] = m[i+1];
+                    }
+                    res[m.length - 1] = pla;
+                    cursor = 0;
+                } else {
+                    res = this.handleSwap(m, cur, cur - 1);
+                    cursor = cur - 1;
+                }
+            } else {
+                if(cur == m.length - 1) {
+                    res = m;
+                    let lastItem = res.pop();
+                    res.unshift(lastItem);
+                    cursor = m.length - 1;
+                } else {
+                    res = this.handleSwap(m, cur, cur + 1);
+                    cursor = cur + 1;
+                }
+            }
+            this.$nextTick(() => {
+                this.media = res;
+                this.carouselCursor = cursor;
+            })
+        },
+
+        handleSwap(arr, index1, index2) {
+            if (index1 >= 0 && index1 < arr.length && index2 >= 0 && index2 < arr.length) {
+                const temp = arr[index1];
+                arr[index1] = arr[index2];
+                arr[index2] = temp;
+                return arr;
+            }
+        },
+
 		compose() {
 			let state = this.composeState;
 
@@ -983,8 +1338,26 @@ export default {
 				return;
 			}
 
+
 			switch(state) {
-				case 'publish' :
+				case 'publish':
+                    this.isPosting = true;
+                    let count = this.media.filter(m => m.filter_class && !m.hasOwnProperty('is_filtered')).length;
+                    if(count) {
+                        this.applyFilterToMedia();
+                        return;
+                    }
+					if(this.composeSettings.media_descriptions === true) {
+						let count = this.media.filter(m => {
+							return !m.hasOwnProperty('alt') || m.alt.length < 2;
+						});
+
+						if(count.length) {
+							swal('Missing media descriptions', 'You have enabled mandatory media descriptions. Please add media descriptions under Advanced settings to proceed. For more information, please see the media settings page.', 'warning');
+							this.isPosting = false;
+							return;
+						}
+					}
 					if(this.media.length == 0) {
 						swal('Whoops!', 'You need to add media before you can save this!', 'warning');
 						return;
@@ -992,6 +1365,7 @@ export default {
 					if(this.composeText == 'Add optional caption...') {
 						this.composeText = '';
 					}
+
 					let data = {
 						media: this.media,
 						caption: this.composeText,
@@ -1001,15 +1375,32 @@ export default {
 						place: this.place,
 						tagged: this.taggedUsernames,
 						optimize_media: this.optimizeMedia,
-						license: this.availableLicenses[this.licenseIndex].id
+						license: this.licenseId,
+						video: this.video,
+						spoiler_text: this.spoilerText,
 					};
+
+					if(this.collectionsSelected.length) {
+						data.collections = this.collectionsSelected
+							.map(idx => {
+								return this.collections[idx].id;
+						});
+					}
+
 					axios.post('/api/compose/v0/publish', data)
 					.then(res => {
-						let data = res.data;
-						window.location.href = data;
+						if(location.pathname === '/i/web/compose' && res.data && res.data.length) {
+							location.href = '/i/web/post/' + res.data.split('/').slice(-1)[0];
+						} else {
+							location.href = res.data;
+						}
 					}).catch(err => {
-						let msg = err.response.data.message ? err.response.data.message : 'An unexpected error occured.'
-						swal('Oops, something went wrong!', msg, 'error');
+						if(err.response) {
+							let msg = err.response.data.message ? err.response.data.message : 'An unexpected error occured.'
+							swal('Oops, something went wrong!', msg, 'error');
+						} else {
+							swal('Oops, something went wrong!', err.message, 'error');
+						}
 					});
 					return;
 				break;
@@ -1068,41 +1459,112 @@ export default {
 		},
 
 		closeModal() {
-			this.composeType = '';
 			$('#composeModal').modal('hide');
+			this.$emit('close');
 		},
 
 		goBack() {
 			this.pageTitle = '';
-			
-			switch(this.page) {
-				case 'addText':
-					this.page = 1;
+
+			switch(this.mode) {
+				case 'photo':
+					switch(this.page) {
+                        case 'filteringMedia':
+                            this.page = 2;
+                        break;
+
+						case 'addText':
+							this.page = 1;
+						break;
+
+						case 'textOptions':
+							this.page = 'addText';
+						break;
+
+						case 'cropPhoto':
+						case 'editMedia':
+							this.page = 2;
+						break;
+
+						case 'tagPeopleHelp':
+							this.showTagCard();
+						break;
+
+						case 'licensePicker':
+							this.page = 3;
+						break;
+
+						case 'video-2':
+							this.page = 1;
+						break;
+
+						default:
+							this.namedPages.indexOf(this.page) != -1 ?
+							this.page = 3 : this.page--;
+						break;
+					}
 				break;
 
-				case 'textOptions':
-					this.page = 'addText';
-				break;
+				case 'video':
+					switch(this.page) {
+                        case 'filteringMedia':
+                            this.page = 2;
+                        break;
 
-				case 'cropPhoto':
-				case 'editMedia':
-					this.page = 2;
-				break;
+						case 'licensePicker':
+							this.page = 'video-2';
+						break;
 
-				case 'tagPeopleHelp':
-					this.showTagCard();
-				break;
+						case 'video-2':
+							this.page = 'video-2';
+						break;
 
-				case 'licensePicker':
-					this.page = 3;
+						default:
+							this.page = 'video-2';
+						break;
+					}
 				break;
 
 				default:
-					this.namedPages.indexOf(this.page) != -1 ? 
-					this.page = (this.textMode ? 'addText' : 3) : 
-					(this.textMode ? 'addText' : this.page--);
+					switch(this.page) {
+						case 'addText':
+							this.page = 1;
+						break;
+
+                        case 'filteringMedia':
+                            this.page = 2;
+                        break;
+
+						case 'textOptions':
+							this.page = 'addText';
+						break;
+
+						case 'cropPhoto':
+						case 'editMedia':
+							this.page = 2;
+						break;
+
+						case 'tagPeopleHelp':
+							this.showTagCard();
+						break;
+
+						case 'licensePicker':
+							this.page = 3;
+						break;
+
+						case 'video-2':
+							this.page = 1;
+						break;
+
+						default:
+							this.namedPages.indexOf(this.page) != -1 ?
+							this.page = (this.mode == 'text' ? 'addText' : 3) :
+							(this.mode == 'text' ? 'addText' : this.page--);
+						break;
+					}
 				break;
 			}
+
 		},
 
 		nextPage() {
@@ -1112,10 +1574,13 @@ export default {
 					this.page = 2;
 				break;
 
+                case 'filteringMedia':
+                break;
+
 				case 'cropPhoto':
 					this.pageLoading = true;
 					let self = this;
-					this.$refs.cropper.getCroppedCanvas({  
+					this.$refs.cropper.getCroppedCanvas({
 							maxWidth: 4096,
 							maxHeight: 4096,
 							fillColor: '#fff',
@@ -1137,14 +1602,7 @@ export default {
 				break;
 
 				case 2:
-					if(this.currentFilter) {
-						if(window.confirm('Are you sure you want to apply this filter?')) {
-							this.applyFilterToMedia();
-							this.page++;
-						}
-					} else {
 						this.page++;
-					}
 				break;
 				case 3:
 					this.page++;
@@ -1182,7 +1640,7 @@ export default {
 		},
 
 		locationSearch(input) {
-			if (input.length < 1) { return []; };
+			if (input.length < 1) { return []; }
 			let results = [];
 			return axios.get('/api/compose/v0/search/location', {
 				params: {
@@ -1199,8 +1657,22 @@ export default {
 
 		onSubmitLocation(result) {
 			this.place = result;
-			this.pageTitle = this.textMode ? 'New Text Post' : '';
-			this.page = (this.textMode ? 'addText' : 3);
+			switch(this.mode) {
+				case 'photo':
+					this.pageTitle = '';
+					this.page = 3;
+				break;
+
+				case 'video':
+					this.pageTitle = 'Edit Video Details';
+					this.page = 'video-2';
+				break;
+
+				case 'text':
+					this.pageTitle = 'New Text Post';
+					this.page = 'addText';
+				break;
+			}
 			return;
 		},
 
@@ -1227,8 +1699,23 @@ export default {
 			}
 			this.visibility = state;
 			this.visibilityTag = tags[state];
-			this.pageTitle = '';
-			this.page = this.textMode ? 'addText' : 3;
+
+			switch(this.mode) {
+				case 'photo':
+					this.pageTitle = '';
+					this.page = 3;
+				break;
+
+				case 'video':
+					this.pageTitle = 'Edit Video Details';
+					this.page = 'video-2';
+				break;
+
+				case 'text':
+					this.pageTitle = 'New Text Post';
+					this.page = 'addText';
+				break;
+			}
 		},
 
 		showMediaDescriptionsCard() {
@@ -1262,45 +1749,75 @@ export default {
 			// this is where the magic happens
 			var ua = navigator.userAgent.toLowerCase();
 			if(ua.indexOf('firefox') == -1 && ua.indexOf('chrome') == -1) {
+                this.isPosting = false;
 			 	swal('Oops!', 'Your browser does not support the filter feature.', 'error');
+                this.page = 3;
 			 	return;
 			}
 
-			let medias = this.media;
-			let media = null;
-			const canvas = document.getElementById('pr_canvas');
-			const ctx = canvas.getContext('2d');
-			let image = document.getElementById('pr_img');
-			let blob = null;
-			let data = null;
-
-			for (var i = medias.length - 1; i >= 0; i--) {
-				media = medias[i];
-				if(media.filter_class) {
-					image.src = media.url;
-					image.addEventListener('load', e => {
-						canvas.width = image.width;
-						canvas.height = image.height;
-						ctx.filter = App.util.filterCss[media.filter_class];
-						ctx.drawImage(image, 0, 0, image.width, image.height);
-						ctx.save();
-						canvas.toBlob(function(blob) {
-							data = new FormData();
-							data.append('file', blob);
-							data.append('id', media.id);
-							axios.post('/api/compose/v0/media/update', data).then(res => {
-							}).catch(err => {
-							});
-						});
-					}, media.mime, 0.9);
-					ctx.clearRect(0, 0, image.width, image.height);
-				}
-			}
-
+            let count = this.media.filter(m => m.filter_class).length;
+            if(count) {
+                this.page = 'filteringMedia';
+                this.filteringRemainingCount = count;
+                this.$nextTick(() => {
+                    this.isFilteringMedia = true;
+                    this.media.forEach((media, idx) => this.applyFilterToMediaSave(media, idx));
+                })
+            } else {
+                this.page = 3;
+            }
 		},
 
+        applyFilterToMediaSave(media, idx) {
+            if(!media.filter_class) {
+                return;
+            }
+
+            let self = this;
+            let data = null;
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            let image = document.createElement('img');
+            image.src = media.url;
+            image.addEventListener('load', e => {
+                canvas.width = image.width;
+                canvas.height = image.height;
+                ctx.filter = App.util.filterCss[media.filter_class];
+                ctx.drawImage(image, 0, 0, image.width, image.height);
+                ctx.save();
+                canvas.toBlob(function(blob) {
+                    data = new FormData();
+                    data.append('file', blob);
+                    data.append('id', media.id);
+                    axios.post('/api/compose/v0/media/update', data)
+                    .then(res => {
+                        self.media[idx].is_filtered = true;
+                        self.updateFilteringMedia();
+                    }).catch(err => {
+                    });
+                });
+            }, media.mime, 0.9);
+            ctx.clearRect(0, 0, image.width, image.height);
+        },
+
+        updateFilteringMedia() {
+            this.filteringRemainingCount--;
+            this.filteringMediaTimeout = setTimeout(() => this.filteringMediaTimeoutJob(), 500);
+        },
+
+        filteringMediaTimeoutJob() {
+            if(this.filteringRemainingCount === 0) {
+                this.isFilteringMedia = false;
+                clearTimeout(this.filteringMediaTimeout);
+                setTimeout(() => this.compose(), 500);
+            } else {
+                clearTimeout(this.filteringMediaTimeout);
+                this.filteringMediaTimeout = setTimeout(() => this.filteringMediaTimeoutJob(), 1000);
+            }
+        },
+
 		tagSearch(input) {
-			if (input.length < 1) { return []; };
+			if (input.length < 1) { return []; }
 			let self = this;
 			let results = [];
 			return axios.get('/api/compose/v0/search/tag', {
@@ -1348,11 +1865,198 @@ export default {
 			this.page = 'licensePicker';
 		},
 
-		toggleLicense(index) {
-			this.licenseIndex = index;
-			this.pageTitle = '';
+		toggleLicense(license) {
+			this.licenseId = license.id;
+
+			if(this.licenseId > 10) {
+				this.licenseTitle = this.availableLicenses.filter(l => {
+					return l.id == this.licenseId;
+				}).map(l => {
+					return l.title;
+				})[0];
+			} else {
+				this.licenseTitle = null;
+			}
+
+			switch(this.mode) {
+				case 'photo':
+					this.pageTitle = '';
+					this.page = 3;
+				break;
+
+				case 'video':
+					this.pageTitle = 'Edit Video Details';
+					this.page = 'video-2';
+				break;
+
+				case 'text':
+					this.pageTitle = 'New Text Post';
+					this.page = 'addText';
+				break;
+			}
+		},
+
+		newPoll() {
+			this.page = 'poll';
+		},
+
+		savePollOption() {
+			if(this.pollOptions.indexOf(this.pollOptionModel) != -1) {
+				this.pollOptionModel = null;
+				return;
+			}
+			this.pollOptions.push(this.pollOptionModel);
+			this.pollOptionModel = null;
+		},
+
+		deletePollOption(index) {
+			this.pollOptions.splice(index, 1);
+		},
+
+		postNewPoll() {
+			this.postingPoll = true;
+			axios.post('/api/compose/v0/poll', {
+				caption: this.composeText,
+				cw: false,
+				visibility: this.visibility,
+				comments_disabled: false,
+				expiry: this.pollExpiry,
+				pollOptions: this.pollOptions
+			}).then(res => {
+				if(!res.data.hasOwnProperty('url')) {
+					swal('Oops!', 'An error occured while attempting to create this poll. Please refresh the page and try again.', 'error');
+					this.postingPoll = false;
+					return;
+				}
+				window.location.href = res.data.url;
+			}).catch(err => {
+				if(err.response.data.hasOwnProperty('error')) {
+					if(err.response.data.error == 'Duplicate detected.') {
+						this.postingPoll = false;
+						swal('Oops!', 'The poll you are trying to create is similar to an existing poll you created. Please make the poll question (caption) unique.', 'error');
+						return;
+					}
+				}
+				this.postingPoll = false;
+				swal('Oops!', 'An error occured while attempting to create this poll. Please refresh the page and try again.', 'error');
+			})
+		},
+
+		filesize(val) {
+			return filesize(val * 1024, {round: 0});
+		},
+
+		showCollectionCard() {
+			this.pageTitle = 'Add to Collection(s)';
+			this.page = 'addToCollection';
+
+			if(!this.collectionsLoaded) {
+				this.fetchCollections();
+			}
+		},
+
+		fetchCollections() {
+			axios.get(`/api/local/profile/collections/${this.profile.id}`)
+			.then(res => {
+				this.collections = res.data;
+				this.collectionsLoaded = true;
+				this.collectionsCanLoadMore = res.data.length == 9;
+				this.collectionsPage++;
+			});
+		},
+
+		toggleCollectionItem(index) {
+			if(!this.collectionsSelected.includes(index)) {
+				if(this.collectionsSelected.length == 7) {
+					swal('Oops!', 'You can only share to 5 collections.', 'info');
+					return;
+				}
+				this.collectionsSelected.push(index);
+			} else {
+				this.collectionsSelected = this.collectionsSelected.filter(c => c != index);
+			}
+		},
+
+		clearSelectedCollections() {
+			this.collectionsSelected = [];
+			this.pageTitle = 'Compose';
 			this.page = 3;
 		},
+
+		loadMoreCollections() {
+			this.collectionsCanLoadMore = false;
+
+			axios.get(`/api/local/profile/collections/${this.profile.id}`, {
+				params: {
+					page: this.collectionsPage
+				}
+			})
+			.then(res => {
+				let ids = this.collections.map(c => c.id);
+				let data = res.data.filter(res => {
+					return !ids.includes(res.id);
+				});
+
+				if(!data || !data.length) {
+					return;
+				}
+
+				this.collections.push(...data);
+				this.collectionsPage++;
+				this.collectionsCanLoadMore = true;
+			});
+		}
 	}
 }
 </script>
+
+<style lang="scss">
+	.compose-modal-component {
+		.media-drawer-filters {
+			overflow-x: auto;
+			flex-wrap:unset;
+		}
+		.media-drawer-filters .nav-link {
+			min-width:100px;
+			padding-top: 1rem;
+			padding-bottom: 1rem;
+		}
+		.media-drawer-filters .active {
+			color: #fff;
+			font-weight: bold;
+		}
+		@media (hover: none) and (pointer: coarse) {
+			.media-drawer-filters::-webkit-scrollbar {
+				display: none;
+			}
+		}
+		.no-focus {
+			border-color: none;
+			outline: 0;
+			box-shadow: none;
+		}
+		a.list-group-item {
+			text-decoration: none;
+		}
+		a.list-group-item:hover {
+			text-decoration: none;
+			background-color: #f8f9fa;
+		}
+		.compose-action:hover {
+			cursor: pointer;
+			background-color: #f8f9fa;
+		}
+		.collections-list-group {
+			max-height: 500px;
+			overflow-y: auto;
+
+			.list-group-item {
+				&.active {
+					color: #212529;
+					border-color: #60a5fa !important;
+					background-color: #dbeafe !important;
+				}
+			}
+		}
+	}
+</style>

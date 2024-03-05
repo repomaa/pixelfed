@@ -5,60 +5,83 @@
 <div class="container reply-container">
   <div class="col-12 col-md-8 offset-md-2 mt-4">
       <div class="card shadow-none border">
-        @if($status->parent()->parent())
+        @php($authed = request()->user())
+        @php($pid = $authed ? request()->user()->profile_id : null)
+        @php($gp = $status->parent()->parent())
+        @if($gp)
         <div class="card-body p-0 m-0 bg-light border-bottom">
+        	@if(
+                !in_array($gp->scope, ['public', 'unlisted', 'private']) ||
+                ($gp->scope == 'private' && !$authed) ||
+                ($gp->scope == 'private' && ($gp->profile_id != $pid && \App\Services\FollowerService::follows($pid, $gp->profile_id) == false))
+            )
+        		<p class="text-center mb-0 py-5 font-weight-bold">This status cannot be viewed at this time.</p>
+        	@else
           <div class="d-flex p-0 m-0 align-items-center">
-            @if($status->parent()->parent()->media()->count())
-            <img src="{{$status->parent()->parent()->thumb()}}" width="150px" height="150px" class="post-thumbnail">
+            @if($gp->media()->count())
+            <img src="{{$gp->thumb()}}" width="150px" height="150px" class="post-thumbnail" onerror="this.onerror=null;this.src='/storage/no-preview.png?v=0';">
             @endif
             <div class="p-4 w-100">
               <div class="">
                 <div class="media">
-                  <img src="{{$status->parent()->parent()->profile->avatarUrl()}}" class="rounded-circle img-thumbnail mb-1 mr-3" width="30px">
+                  <img src="{{$gp->profile->avatarUrl()}}" class="rounded-circle img-thumbnail mb-1 mr-3" width="30px" onerror="this.onerror=null;this.src='/storage/avatars/default.png?v=0';">
                   <div class="media-body">
-                    <span class="font-weight-bold" v-pre>{{$status->parent()->parent()->profile->username}}</span>
+                    <span class="font-weight-bold" v-pre>{{$gp->profile->username}}</span>
                     <div class="">
-                      <p class="w-100 text-break" v-pre>{!!$status->parent()->parent()->rendered!!}</p>
+                      <p class="w-100 text-break" v-pre>{!!$gp->rendered!!}</p>
                     </div>
                     <div class="mb-0 small">
-                      <a href="{{$status->parent()->parent()->url()}}" class="text-muted">
-                        {{$status->parent()->parent()->created_at->diffForHumans()}}
+                      <a href="{{$gp->url()}}" class="text-muted">
+                        {{$gp->created_at->diffForHumans()}}
                       </a>
                     </div>
                   </div>
-                  <a class="float-right" href="{{$status->parent()->parent()->url()}}"><i class="far fa-share-square"></i></a>
+                  <a class="float-right" href="{{$gp->url()}}"><i class="far fa-share-square"></i></a>
                 </div>
               </div>
             </div>
           </div>
+          @endif
         </div>
         @endif
+
+        @php($parent = $status->parent())
         <div class="card-body p-0 m-0 bg-light border-bottom">
+            @if(
+                !in_array($parent->scope, ['public', 'unlisted', 'private']) ||
+                ($parent->scope == 'private' && !$authed) ||
+                ($parent->scope == 'private' && ($parent->profile_id != $pid && \App\Services\FollowerService::follows($pid, $parent->profile_id) == false))
+            )
+        		<p class="text-center mb-0 py-5 font-weight-bold">This status cannot be viewed at this time.</p>
+        	@else
           <div class="d-flex p-0 m-0 align-items-center">
-            @if($status->parent()->media()->count())
-            <img src="{{$status->parent()->thumb()}}" width="150px" height="150px" class="post-thumbnail">
+            @if($parent->media()->count())
+            <img src="{{$parent->thumb()}}" width="150px" height="150px" class="post-thumbnail" onerror="this.onerror=null;this.src='/storage/no-preview.png?v=0';">
             @endif
             <div class="p-4 w-100">
               <div class="">
                 <div class="media">
-                  <img src="{{$status->parent()->profile->avatarUrl()}}" class="rounded-circle img-thumbnail mb-1 mr-3" width="30px">
+                  <img src="{{$parent->profile->avatarUrl()}}" class="rounded-circle img-thumbnail mb-1 mr-3" width="30px" onerror="this.onerror=null;this.src='/storage/avatars/default.png?v=0';">
                   <div class="media-body">
-                    <span class="font-weight-bold" v-pre>{{$status->parent()->profile->username}}</span>
+                    <span class="font-weight-bold" v-pre>{{$parent->profile->username}}</span>
                     <div class="">
-                      <p class="w-100 text-break" v-pre>{!!$status->parent()->rendered!!}</p>
+                      <p class="w-100 text-break" v-pre>{!!$parent->rendered!!}</p>
                     </div>
                     <div class="mb-0 small">
-                      <a href="{{$status->parent()->url()}}" class="text-muted">
-                        {{$status->parent()->created_at->diffForHumans()}}
+                      <a href="{{$parent->url()}}" class="text-muted">
+                        {{$parent->created_at->diffForHumans()}}
                       </a>
                     </div>
                   </div>
-                  <a class="float-right" href="{{$status->parent()->url()}}"><i class="far fa-share-square"></i></a>
+                  <a class="float-right" href="{{$parent->url()}}"><i class="far fa-share-square"></i></a>
                 </div>
               </div>
             </div>
           </div>
+          @endif
         </div>
+
+
         <div class="card-body border-bottom">
           @if($status->is_nsfw)
           <details class="cw">
@@ -66,7 +89,7 @@
               <p class="py-5 mb-0 text-center">This comment may contain sensitive content. <span class="float-right font-weight-bold text-primary">Show</span></p>
             </summary>
             <div class="media py-5">
-              <img class="mr-3 rounded-circle img-thumbnail" src="{{$status->profile->avatarUrl()}}" width="60px">
+              <img class="mr-3 rounded-circle img-thumbnail" src="{{$status->profile->avatarUrl()}}" width="60px" onerror="this.onerror=null;this.src='/storage/avatars/default.png?v=0';">
               <div class="media-body">
                 <h5 class="mt-0 font-weight-bold" v-pre>{{$status->profile->username}}</h5>
                 <p class="" v-pre>{!! $status->rendered !!}</p>
@@ -80,7 +103,7 @@
           </details>
           @else
           <div class="media py-5">
-            <img class="mr-3 rounded-circle img-thumbnail" src="{{$status->profile->avatarUrl()}}" width="60px">
+            <img class="mr-3 rounded-circle img-thumbnail" src="{{$status->profile->avatarUrl()}}" width="60px" onerror="this.onerror=null;this.src='/storage/avatars/default.png?v=0';">
             <div class="media-body">
               <h5 class="mt-0 font-weight-bold" v-pre>{{$status->profile->username}}</h5>
               <p class="" v-pre>{!! $status->rendered !!}</p>
@@ -101,16 +124,17 @@
           </div>
           @endif
         </div>
+
         @if($status->comments->count())
         <div class="card-body p-0 m-0 bg-light border-bottom">
           <div class="d-flex p-0 m-0 align-items-center">
             @if($status->comments()->first()->media()->count())
-            <img src="{{$status->comments()->first()->thumb()}}" width="150px" height="150px" class="post-thumbnail">
+            <img src="{{$status->comments()->first()->thumb()}}" width="150px" height="150px" class="post-thumbnail" onerror="this.onerror=null;this.src='/storage/no-preview.png?v=0';">
             @endif
             <div class="p-4 w-100">
               <div class="">
                 <div class="media">
-                  <img src="{{$status->comments()->first()->profile->avatarUrl()}}" class="rounded-circle img-thumbnail mb-1 mr-3" width="30px">
+                  <img src="{{$status->comments()->first()->profile->avatarUrl()}}" class="rounded-circle img-thumbnail mb-1 mr-3" width="30px" onerror="this.onerror=null;this.src='/storage/avatars/default.png?v=0';">
                   <div class="media-body">
                     <span class="font-weight-bold" v-pre>{{$status->comments()->first()->profile->username}}</span>
                     <div class="">

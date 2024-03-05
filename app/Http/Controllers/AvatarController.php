@@ -19,7 +19,7 @@ class AvatarController extends Controller
     public function store(Request $request)
     {
         $this->validate($request, [
-          'avatar' => 'required|mimes:jpeg,png|max:'.config('pixelfed.max_avatar_size'),
+          'avatar' => 'required|mimetypes:image/jpeg,image/jpg,image/png|max:'.config('pixelfed.max_avatar_size'),
         ]);
 
         try {
@@ -30,7 +30,7 @@ class AvatarController extends Controller
             $dir = $path['root'];
             $name = $path['name'];
             $public = $path['storage'];
-            $loc = $request->file('avatar')->storeAs($public, $name);
+            $loc = $request->file('avatar')->storePubliclyAs($public, $name);
 
             $avatar = Avatar::firstOrNew(['profile_id' => $profile->id]);
             $currentAvatar = $avatar->recentlyCreated ? null : storage_path('app/'.$profile->avatar->media_path);

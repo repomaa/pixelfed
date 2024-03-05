@@ -55,17 +55,10 @@ return [
     'url' => env('APP_URL', 'https://localhost'),
 
     /*
-    |--------------------------------------------------------------------------
-    | Application Timezone
-    |--------------------------------------------------------------------------
-    |
-    | Here you may specify the default timezone for your application, which
-    | will be used by the PHP date and date-time functions. We have gone
-    | ahead and set this to a sensible default for you out of the box.
-    |
-    */
+     * Do not edit your timezone or things will break!
+     */
 
-    'timezone' => env('APP_TIMEZONE', 'UTC'),
+    'timezone' => 'UTC',
 
     /*
     |--------------------------------------------------------------------------
@@ -107,6 +100,12 @@ return [
     'key' => env('APP_KEY'),
 
     'cipher' => 'AES-256-CBC',
+
+    'short_description' => 'Pixelfed is an image sharing platform, an ethical alternative to centralized platforms.',
+    'description' => 'Pixelfed is an image sharing platform, an ethical alternative to centralized platforms.',
+    'rules' => null,
+    'logo' => '/img/pixelfed-icon-color.svg',
+    'banner_image' => '/storage/headers/default.jpg',
 
     /*
     |--------------------------------------------------------------------------
@@ -156,10 +155,12 @@ return [
          */
         App\Providers\AppServiceProvider::class,
         App\Providers\AuthServiceProvider::class,
-        // App\Providers\BroadcastServiceProvider::class,
+        App\Providers\BroadcastServiceProvider::class,
         App\Providers\HorizonServiceProvider::class,
         App\Providers\EventServiceProvider::class,
         App\Providers\RouteServiceProvider::class,
+        // App\Providers\TelescopeServiceProvider::class,
+        App\Providers\PassportServiceProvider::class,
 
     ],
 

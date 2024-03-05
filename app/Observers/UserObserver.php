@@ -3,15 +3,32 @@
 namespace App\Observers;
 
 use App\Jobs\AvatarPipeline\CreateAvatar;
+use App\Follower;
 use App\Profile;
 use App\User;
 use App\UserSetting;
+use App\Services\UserFilterService;
+use App\Models\DefaultDomainBlock;
+use App\Models\UserDomainBlock;
+use App\Jobs\FollowPipeline\FollowPipeline;
 use DB;
+use App\Services\FollowerService;
 
 class UserObserver
 {
     /**
-     * Listen to the User created event.
+     * Handle the notification "created" event.
+     *
+     * @param  \App\User $user
+     * @return void
+     */
+    public function created(User $user): void
+    {
+        $this->handleUser($user);
+    }
+
+    /**
+     * Listen to the User saved event.
      *
      * @param \App\User $user
      *
@@ -19,10 +36,45 @@ class UserObserver
      */
     public function saved(User $user)
     {
-        if($user->status == 'deleted') {
+        $this->handleUser($user);
+    }
+
+    /**
+     * Listen to the User updated event.
+     *
+     * @param \App\User $user
+     *
+     * @return void
+     */
+    public function updated(User $user): void
+    {
+        $this->handleUser($user);
+        if($user->profile) {
+            $this->applyDefaultDomainBlocks($user);
+        }
+    }
+
+    /**
+     * Handle the user "deleted" event.
+     *
+     * @param  \App\User $user
+     * @return void
+     */
+    public function deleted(User $user)
+    {
+        FollowerService::delCache($user->profile_id);
+    }
+
+    protected function handleUser($user)
+    {
+        if(in_array($user->status, ['deleted', 'delete'])) {
             return;
         }
-        
+
+        if(Profile::whereUsername($user->username)->exists()) {
+            return;
+        }
+
         if (empty($user->profile)) {
             $profile = DB::transaction(function() use($user) {
                 $profile = new Profile();
@@ -42,8 +94,11 @@ class UserObserver
                 $profile->private_key = $pki_private;
                 $profile->public_key = $pki_public;
                 $profile->save();
+                $this->applyDefaultDomainBlocks($user);
                 return $profile;
             });
+
+
             DB::transaction(function() use($user, $profile) {
                 $user = User::findOrFail($user->id);
                 $user->profile_id = $profile->id;
@@ -52,6 +107,27 @@ class UserObserver
                 CreateAvatar::dispatch($profile);
             });
 
+            if(config_cache('account.autofollow') == true) {
+                $names = config_cache('account.autofollow_usernames');
+                $names = explode(',', $names);
+
+                if(!$names || !last($names)) {
+                    return;
+                }
+
+                $profiles = Profile::whereIn('username', $names)->get();
+
+                if($profiles) {
+                    foreach($profiles as $p) {
+                        $follower = new Follower;
+                        $follower->profile_id = $profile->id;
+                        $follower->following_id = $p->id;
+                        $follower->save();
+
+                        FollowPipeline::dispatch($follower);
+                    }
+                }
+            }
         }
 
         if (empty($user->settings)) {
@@ -60,6 +136,25 @@ class UserObserver
                     'user_id' => $user->id
                 ]);
             });
+        }
+    }
+
+    protected function applyDefaultDomainBlocks($user)
+    {
+        if($user->profile_id == null) {
+            return;
+        }
+        $defaultDomainBlocks = DefaultDomainBlock::pluck('domain')->toArray();
+
+        if(!$defaultDomainBlocks || !count($defaultDomainBlocks)) {
+            return;
+        }
+
+        foreach($defaultDomainBlocks as $domain) {
+            UserDomainBlock::updateOrCreate([
+                'profile_id' => $user->profile_id,
+                'domain' => strtolower(trim($domain))
+            ]);
         }
     }
 }
